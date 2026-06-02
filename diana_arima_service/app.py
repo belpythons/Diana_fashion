@@ -64,6 +64,14 @@ def predict():
 
         ts_series = df['total_sales'].astype(float)
 
+        # Extract dynamic ARIMA search hyperparameters with sensible defaults
+        start_p = int(tuning_params.get('start_p', 0))
+        start_q = int(tuning_params.get('start_q', 0))
+        max_p = int(tuning_params.get('max_p', 5))
+        max_q = int(tuning_params.get('max_q', 5))
+        seasonal = bool(tuning_params.get('seasonal', False))
+        stepwise = bool(tuning_params.get('stepwise', True))
+
         # 4. Perhitungan MAPE Adaptif (Resolusi #8)
         if len(ts_series) >= 15:
             # === DATA CUKUP: Train-Test Split 80/20 ===
@@ -73,8 +81,8 @@ def predict():
 
             # Latih model ARIMA di data Train
             model = auto_arima(
-                train, start_p=0, start_q=0, max_p=5, max_q=5,
-                d=None, seasonal=False, stepwise=True,
+                train, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q,
+                d=None, seasonal=seasonal, stepwise=stepwise,
                 error_action='ignore', suppress_warnings=True
             )
 
@@ -90,8 +98,8 @@ def predict():
         else:
             # === DATA MINIM: In-sample MAPE + Warning Flag ===
             model = auto_arima(
-                ts_series, start_p=0, start_q=0, max_p=5, max_q=5,
-                d=None, seasonal=False, stepwise=True,
+                ts_series, start_p=start_p, start_q=start_q, max_p=max_p, max_q=max_q,
+                d=None, seasonal=seasonal, stepwise=stepwise,
                 error_action='ignore', suppress_warnings=True
             )
 
