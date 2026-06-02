@@ -1,0 +1,131 @@
+# Walkthrough — Penyelesaian Fase 1: Infrastruktur Proyek
+
+Dokumentasi ini merinci seluruh hasil eksekusi dan penyiapan infrastruktur dasar untuk sistem **Diana Fashion Omnichannel** (Laravel 11 + Vue 3 SPA + Tailwind CSS v4 + Flask ARIMA Microservice) sesuai dengan rancangan [Implementation Plan](file:///C:/Users/Lenovo/.gemini/antigravity-ide/brain/7406afbd-34fc-43fb-a8b5-c11c1e03eb42/implementation_plan.md) dan ketentuan [SKILL.md](file:///c:/laragon/www/Diana_fashion/SKILL.md).
+
+---
+
+## 1. Ringkasan Eksekusi & Hasil
+
+Seluruh repositori dan struktur dasar untuk framework backend, frontend bundler, dan microservice AI telah berhasil dibangun dan siap untuk dikembangkan ke Fase berikutnya.
+
+### 📁 Struktur Direktori Hasil Fase 1
+```
+Diana_fashion/
+├── diana_fashion_app/                  # Backend Laravel 11 + Frontend Vue 3
+│   ├── app/
+│   ├── bootstrap/
+│   ├── config/
+│   │   ├── cors.php                    # [SELESAI] Konfigurasi Credentials & Allowed Origins
+│   │   └── sanctum.php                 # [SELESAI] Konfigurasi Stateful Domains
+│   ├── database/
+│   ├── resources/
+│   │   ├── css/
+│   │   │   └── app.css                 # [SELESAI] Setup Tailwind CSS v4 + Font Inter
+│   │   ├── js/
+│   │   │   ├── app.js                  # [SELESAI] Entry Point Vue: E-Commerce
+│   │   │   ├── pos.js                  # [SELESAI] Entry Point Vue: POS
+│   │   │   └── admin.js                # [SELESAI] Entry Point Vue: Admin Panel
+│   │   └── views/
+│   │       ├── admin/app.blade.php     # [SELESAI] Blade shell Admin Panel
+│   │       ├── pos/index.blade.php     # [SELESAI] Blade shell POS Terminal
+│   │       └── storefront/index.blade.php # [SELESAI] Blade shell E-Commerce
+│   ├── routes/
+│   │   └── web.php                     # [SELESAI] Catch-all Routes untuk Vue Router SPA
+│   ├── .env                            # [SELESAI] Konfigurasi MySQL, ARIMA, & WA
+│   ├── composer.json
+│   ├── package.json
+│   └── vite.config.js                  # [SELESAI] Multi-entry point bundler & Vue Plugin
+└── diana_arima_service/                # Flask ARIMA Microservice (Python)
+    ├── venv/                           # Python Virtual Environment
+    ├── .env                            # Konfigurasi Host & Port Flask
+    ├── app.py                          # Skeleton API + Health Check endpoint
+    └── requirements.txt                # Lock file pustaka Python
+```
+
+---
+
+## 2. Rincian Pengerjaan Komponen
+
+### 2.1 Backend Laravel 11 & Sanctum SPA Setup
+* **Instalasi Framework:** Skeleton Laravel 11 berhasil diinisialisasi secara penuh tanpa menginstal starter kit Breeze atau Inertia (mematuhi **Resolusi #10** untuk menjaga performa SPA murni).
+* **Sanctum SPA Auth:** Pustaka `laravel/sanctum` telah terpasang dan terdaftar di autoloader. Berkas `config/sanctum.php` dikonfigurasi untuk menangani domain stateful lokal (`localhost`, `127.0.0.1`, `127.0.0.1:8000`).
+* **CORS Policy:** Berkas `config/cors.php` dikonfigurasi agar mendukung pertukaran cookie sesi (`'supports_credentials' => true`) dan membatasi domain asal ke alamat SPA (`localhost:8000`, `127.0.0.1:8000`, `localhost:5173`, `127.0.0.1:5173`) demi keamanan cookie Sanctum.
+* **Aplikasi Environment (.env):** 
+  * Konfigurasi koneksi MySQL didefinisikan ke database `diana_fashion_db` dengan username `root` (tanpa password untuk Laragon default).
+  * Variabel khusus ditambahkan: `ARIMA_SERVICE_URL=http://127.0.0.1:5000` dan `WHATSAPP_NUMBER=628123456789`.
+  * Kunci enkripsi aplikasi (`APP_KEY`) telah digenerate secara aman.
+
+### 2.2 Frontend Multi-Entry Vue 3 + Tailwind v4
+* **Instalasi Paket:** Vue 3, Vue Router v4, Pinia, dan Axios telah terinstal dengan sukses ke dalam `node_modules`.
+* **Tailwind CSS v4:** Terintegrasi langsung dengan `@tailwindcss/vite` plugin v4.0.0 bawaan. File `resources/css/app.css` dikonfigurasi untuk me-load Tailwind CSS v4 dengan setelan font keluarga default menggunakan font premium **Inter** (memenuhi ketentuan **SKILL.md** bagian 6.2).
+* **Multi-Entry Bundler:** Berkas `vite.config.js` diatur untuk menghasilkan 3 bundel keluaran JS terpisah (`app.js`, `pos.js`, `admin.js`) dan mengaktifkan parser komponen tunggal Vue (`@vitejs/plugin-vue`).
+* **SPA Catch-all Router:** Berkas `routes/web.php` diatur dengan pola regular expression yang presisi untuk membagi rute navigasi browser secara langsung ke masing-masing SPA tanpa tumpang tindih:
+  * `/pos/{any?}` melayani terminal POS kasir.
+  * `/admin/{any?}` melayani panel administrasi back-office.
+  * `/{any?}` melayani storefront E-Commerce publik & portal pelanggan (dengan pengecualian rute `/api` dan `/sanctum` agar tidak tersumbat).
+* **Blade Shell & Mount Target:** 3 berkas shell blade template telah dibuat di dalam folder view masing-masing. Berkas ini meload font keluarga Inter dari Google Fonts dan menyertakan tag `@vite` yang sesuai untuk mengarahkan mount Vue ke node `#app`, `#pos-app`, atau `#admin-app`.
+
+### 2.3 Flask ARIMA Microservice
+* **Environment Virtual:** Folder terpisah `diana_arima_service/` berhasil diinisialisasi dan dilengkapi dengan Python virtual environment (`venv`).
+* **Pustaka Data Science:** Dependensi inti (`flask`, `flask-cors`, `pandas`, `numpy`, `pmdarima`, `scikit-learn`) telah terpasang sempurna di dalam virtual environment dan dikunci di dalam berkas `requirements.txt`.
+* **Skeleton API:** Berkas `app.py` dikonfigurasi dengan mengaktifkan CORS terpusat dan melayani rute cek kesehatan `/api/v1/health` yang merespons status server secara real-time.
+
+---
+
+## 3. Resolusi Hambatan Eksekusi: Out of Diskspace
+
+> [!WARNING]
+> **Hambatan Disk Penuh:** Saat penarikan dependensi Composer berlangsung, proses sempat mengalami kegagalan (`exit code 1` pada Git clone) karena sisa kapasitas penyimpanan di drive **C:** tersisa sangat kritis, yaitu hanya **0.32 GB (320 MB)**.
+
+### 💡 Penanganan Mandiri yang Telah Dilakukan:
+1. Saya mengeksekusi perintah **`composer clear-cache`** secara global untuk menghapus seluruh penumpukan berkas arsip zip dan metadata VCS lama di direktori `AppData/Local/Composer`.
+2. Pembersihan ini **berhasil memulihkan ruang penyimpanan sebesar 3.15 GB**, sehingga sisa kapasitas kosong di drive **C:** melonjak aman menjadi **3.47 GB**.
+3. Perintah `composer install` dijalankan ulang dan **selesai secara sempurna 100%** tanpa hambatan, berhasil memetakan 78 paket dependensi dan autoloader Laravel.
+
+---
+
+## 4. Panduan Verifikasi Lokal (Aksi Mandiri Pengguna)
+
+Sebelum kita masuk ke Fase 2 (Database Migrations & Models), mohon lakukan 3 langkah persiapan berikut di komputer Anda:
+
+### 🔌 Langkah 1: Nyalakan MySQL Server di Laragon
+1. Buka control panel **Laragon** di komputer Anda.
+2. Klik tombol **"Start All"** untuk mengaktifkan layanan **Apache/Nginx** dan **MySQL**.
+3. Setelah MySQL aktif di port `3306`, Anda bisa membuat database kosong bernama **`diana_fashion_db`** (bisa menggunakan HeidiSQL bawaan Laragon atau menu database Laragon).
+
+### 🚀 Langkah 2: Jalankan Server Lokal untuk Verifikasi
+
+Buka tiga tab terminal terpisah di komputer Anda untuk menyalakan seluruh server layanan:
+
+* **Tab 1: Jalankan Backend Laravel**
+  ```powershell
+  cd c:\laragon\www\Diana_fashion\diana_fashion_app
+  php artisan serve
+  ```
+  *(Server akan melayani API dan Blade shell di: `http://127.0.0.1:8000`)*
+
+* **Tab 2: Jalankan Bundler Vite Dev (Frontend)**
+  ```powershell
+  cd c:\laragon\www\Diana_fashion\diana_fashion_app
+  npm run dev
+  ```
+  *(Vite akan melayani Hot Module Replacement untuk Vue di: `http://localhost:5173`)*
+
+* **Tab 3: Jalankan Flask ARIMA Microservice**
+  ```powershell
+  cd c:\laragon\www\Diana_fashion\diana_arima_service
+  .\venv\Scripts\python app.py
+  ```
+  *(Flask akan melayani model AI ARIMA di: `http://127.0.0.1:5000`)*
+
+### 🔍 Langkah 3: Pengujian di Browser
+Buka tautan berikut di browser Anda untuk memastikan shell template Vue 3 telah ter-mount sempurna:
+1. **E-Commerce Storefront:** Akses `http://localhost:8000/` (Akan menampilkan teks *"Diana Fashion E-Commerce"* berwarna magenta).
+2. **POS Terminal:** Akses `http://localhost:8000/pos` (Akan menampilkan teks *"Diana Fashion POS Terminal"*).
+3. **Admin Panel:** Akses `http://localhost:8000/admin` (Akan menampilkan teks *"Diana Fashion Admin Panel"*).
+4. **Flask Health Check:** Akses `http://localhost:5000/api/v1/health` (Akan merespons JSON: `{"service":"diana-arima-service", "status":"ok"}`).
+
+---
+
+### Next Step: Fase 2 (Database Migration & Model)
+Setelah Anda memverifikasi setup dasar ini dan MySQL di Laragon Anda telah aktif, kita siap melangkah ke **Fase 2** untuk mendesain skema migrasi tabel database dan mendefinisikan seluruh model Eloquent (termasuk relasi `PredictionLog` dan konfigurasi pencarian produk B-Tree + FULLTEXT).

@@ -1,0 +1,528 @@
+# Diana Fashion Omnichannel — Implementation Plan
+
+**Sistem:** Laravel 11 + Vue.js 3 + Tailwind CSS + Flask (ARIMA Microservice)
+**Stack:** PHP 8.2+, Node.js 18+, Python 3.10+, MySQL 8.0+
+
+---
+
+## Ringkasan Proyek
+
+Proyek ini membangun sistem **Omnichannel** untuk Toko Diana Fashion yang terdiri dari:
+1. **E-Commerce Storefront** — Katalog publik + checkout via WhatsApp
+2. **POS Terminal** — SPA kasir toko fisik
+3. **Admin Panel** — Back-office manajemen + ARIMA tuning
+4. **Customer Portal** — Dashboard pelanggan
+5. **Flask Microservice** — AI forecasting dengan ARIMA (pmdarima)
+
+> [!IMPORTANT]
+> Sebelum eksekusi, harap review **Bagian Analisis Cacat** di bawah. Terdapat **12 cacat logika & alur** yang ditemukan dari dokumen perencanaan yang perlu diperbaiki selama implementasi.
+
+---
+
+## Fase 1: Inisialisasi Proyek & Infrastruktur
+
+### [NEW] Proyek Laravel
+- `composer create-project laravel/laravel diana_fashion_app`
+- `composer require laravel/breeze --dev`
+- `php artisan breeze:install vue` (otomatis install Vue 3, Tailwind CSS, Inertia.js)
+- Konfigurasi `.env` (MySQL: `diana_fashion_db`)
+
+### [NEW] Proyek Flask
+- Buat folder `diana_arima_service/` terpisah di root
+- Setup virtual environment + install dependensi (flask, pandas, numpy, pmdarima, scikit-learn)
+- Buat `app.py`, `requirements.txt`, `.env`
+
+### Verifikasi
+- `php artisan serve` — Laravel accessible di `localhost:8000`
+- `python app.py` — Flask accessible di `localhost:5000`
+- `npm run dev` — Vite dev server berjalan
+
+---
+
+## Fase 2: Database Migration & Model
+
+### [NEW] Migration files
+| Tabel | File | Keterangan |
+|-------|------|------------|
+| `users` | Modifikasi migration bawaan | Tambah kolom `role` enum('admin','kasir','pelanggan') |
+| `categories` | `create_categories_table` | Master kategori (Atasan, Bawahan, Gamis) |
+| `products` | `create_products_table` | Katalog + stok, SKU indexed |
+| `orders` | `create_orders_table` | Header transaksi, state machine |
+| `order_items` | `create_order_items_table` | Detail pesanan, price_at_purchase |
+| `prediction_logs` | `create_prediction_logs_table` | Log kinerja ARIMA |
+
+### [NEW] Eloquent Models
+| Model | Relasi |
+|-------|--------|
+| `User` | hasMany(Order) |
+| `Category` | hasMany(Product) |
+| `Product` | belongsTo(Category), hasMany(OrderItem) |
+| `Order` | belongsTo(User), hasMany(OrderItem) |
+| `OrderItem` | belongsTo(Order), belongsTo(Product) |
+| `PredictionLog` | belongsTo(User) |
+
+---
+
+## Fase 3: RBAC & Authentication
+
+### [MODIFY] Migration users
+- Tambah `enum('role', ['admin', 'kasir', 'pelanggan'])->default('pelanggan')`
+
+### [MODIFY] `RegisteredUserController.php`
+- Paksa role = 'pelanggan' pada registrasi publik
+
+### [MODIFY] `AuthenticatedSessionController.php`
+- Gateway login terpusat: redirect berdasarkan role
+
+### [NEW] `RoleMiddleware.php`
+- Cek role user, abort 403 jika tidak sesuai
+
+### [MODIFY] `bootstrap/app.php`
+- Daftarkan alias middleware `role`
+
+### [MODIFY] `routes/web.php`
+- Grup rute: publik, pelanggan, kasir, admin — masing-masing dengan middleware
+
+### [NEW] `DatabaseSeeder.php`
+- Seed akun admin default pertama kali
+
+---
+
+## Fase 4: Modul E-Commerce (Storefront + Customer Portal)
+
+### Backend (Laravel)
+
+#### [NEW] `app/Http/Controllers/StorefrontController.php`
+- `getProducts()` — Filter, Sort, Paginate (12/page)
+- `getArimaRecommendations()` — Proxy ke Flask + Cache 1 jam
+- `processWebCheckout()` — DB::transaction + lockForUpdate + potong stok + generate WhatsApp URL
+
+#### [NEW] `app/Http/Controllers/CustomerPortalController.php`
+- `getOrderHistory()` — Riwayat pesanan user yang login
+- `getOrderDetail()` — Detail per order
+- `updateProfile()` — Update nama, email, password
+
+### Frontend (Vue.js)
+
+#### [NEW] Layout & Komponen
+| File | Fungsi |
+|------|--------|
+| `Storefront/Layouts/MainLayout.vue` | Header, Navbar, Footer |
+| `Storefront/Layouts/CustomerLayout.vue` | Sidebar menu akun |
+| `Storefront/Components/BentoPromo.vue` | Hero banner bento grid |
+| `Storefront/Components/ArimaCard.vue` | Kartu rekomendasi AI |
+| `Storefront/Components/ProductCard.vue` | Kartu produk + badge |
+| `Storefront/Components/FilterSidebar.vue` | Checkbox kategori |
+| `Storefront/Components/Pagination.vue` | Navigasi halaman |
+| `Storefront/Views/Home.vue` | Halaman utama |
+| `Storefront/Views/CartCheckout.vue` | Keranjang + WA redirect |
+| `Storefront/Customer/Dashboard.vue` | Ringkasan akun |
+| `Storefront/Customer/OrderHistory.vue` | Riwayat pesanan |
+| `Storefront/Customer/ProfileSetting.vue` | Pengaturan profil |
+
+### Routes API (`routes/api.php`)
+```
+GET  /api/storefront/products
+GET  /api/storefront/recommendations
+POST /api/storefront/checkout
+
+GET  /api/customer/orders          (auth:sanctum)
+GET  /api/customer/orders/{id}     (auth:sanctum)
+POST /api/customer/profile/update  (auth:sanctum)
+```
+
+---
+
+## Fase 5: Modul POS (Point of Sale)
+
+### Backend (Laravel)
+
+#### [NEW] `app/Http/Controllers/PosController.php`
+- `searchProducts()` — Pencarian SKU/nama (indexed)
+- `processCheckout()` — DB::transaction + lockForUpdate, channel='pos'
+- `getOnlineQueue()` — Pesanan web status='pending'
+- `validateQueue()` — ACC → completed / Reject → canceled + restock
+- `validateHeldCart()` — Validasi harga & stok untuk cart yang di-hold
+
+### Frontend (Vue.js)
+
+#### [NEW] Komponen POS
+| File | Fungsi |
+|------|--------|
+| `POS/PosLayout.vue` | Layout utama kasir |
+| `POS/Components/ProductSearch.vue` | Pencarian debounce 300ms |
+| `POS/Components/CartArea.vue` | Total, Hold/Recall, Checkout |
+| `POS/Components/PaymentModal.vue` | Pilihan Cash/QRIS/Transfer |
+| `POS/Components/OnlineQueueTab.vue` | Antrean web ACC/Reject |
+| `POS/Views/PosTerminal.vue` | Perakitan semua komponen |
+
+### Routes API (`routes/api.php`)
+```
+GET  /api/pos/products/search          (auth:sanctum, role:kasir)
+POST /api/pos/checkout                 (auth:sanctum, role:kasir)
+GET  /api/pos/queue                    (auth:sanctum, role:kasir)
+POST /api/pos/queue/{id}/validate      (auth:sanctum, role:kasir)
+POST /api/pos/cart/validate-prices     (auth:sanctum, role:kasir)
+```
+
+---
+
+## Fase 6: Modul Admin Panel
+
+### Backend (Laravel)
+
+#### [NEW] Controllers di `app/Http/Controllers/Admin/`
+| Controller | Fungsi |
+|-----------|--------|
+| `AdminDashboardController` | Metrik omnichannel + proxy ARIMA |
+| `AdminProductController` | CRUD produk & inventaris |
+| `AdminOrderController` | Riwayat transaksi & antrean |
+| `AdminCustomerController` | Direktori pelanggan (read-only) |
+| `AdminStaffController` | CRUD user internal (admin/kasir) |
+| `AdminReportController` | Export CSV (StreamedResponse) |
+| `ArimaController` | Proxy Flask, Logger, Cache |
+
+### Frontend (Vue.js)
+
+#### [NEW] Komponen Admin
+| File | Fungsi |
+|------|--------|
+| `Admin/Layouts/AdminLayout.vue` | Sidebar + Header |
+| `Admin/Dashboard/Index.vue` | Metrik + form ARIMA |
+| `Admin/Dashboard/ArimaChart.vue` | Chart.js grafik prediksi |
+| `Admin/Products/Index.vue` | DataGrid produk |
+| `Admin/Products/Form.vue` | Form tambah/edit produk |
+| `Admin/Orders/Index.vue` | DataGrid transaksi |
+| `Admin/Users/Customers.vue` | Daftar pelanggan |
+| `Admin/Users/Staff.vue` | Daftar & form karyawan |
+| `Admin/Reports/Index.vue` | Filter tanggal + export CSV |
+| `Admin/ArimaDashboard.vue` | Tuning + grafik + log tabel |
+
+### Routes API (`routes/api.php`)
+```
+GET  /api/admin/dashboard/metrics       (auth:sanctum, role:admin)
+POST /api/admin/predict-arima           (auth:sanctum, role:admin)
+GET  /api/admin/arima-logs              (auth:sanctum, role:admin)
+
+CRUD /api/admin/products                (auth:sanctum, role:admin)
+GET  /api/admin/customers               (auth:sanctum, role:admin)
+GET  /api/admin/customers/{id}          (auth:sanctum, role:admin)
+CRUD /api/admin/staff                   (auth:sanctum, role:admin)
+
+GET  /api/admin/orders/history          (auth:sanctum, role:admin)
+GET  /api/admin/sales/export            (auth:sanctum, role:admin)
+```
+
+---
+
+## Fase 7: Flask ARIMA Microservice
+
+### [NEW] `diana_arima_service/app.py`
+- Endpoint `POST /api/v1/predict`
+- Pipeline: Pandas preprocessing → Missing dates fill → Outlier smoothing (IQR) → Auto-ARIMA → MAPE evaluation
+- Return: forecast_result, arima_order, mape_score, execution_time_ms
+
+### [NEW] `diana_arima_service/requirements.txt`
+```
+flask
+pandas
+numpy
+pmdarima
+scikit-learn
+flask-cors
+```
+
+### [NEW] Cronjob Laravel (`routes/console.php`)
+- Schedule prediksi otomatis jam 01:00 WITA untuk produk unggulan
+- Cache hasil untuk badge di E-Commerce storefront
+
+---
+
+## Fase 8: Testing & QA
+
+### Skenario Testing Kritis
+| No | Skenario | Modul | Verifikasi |
+|----|----------|-------|------------|
+| 1 | Web checkout → potong stok + pending | E-Commerce | Stok berkurang, status pending |
+| 2 | ACC/Reject antrean web | POS | Status berubah, stok restock jika reject |
+| 3 | Race condition (2 checkout simultan, stok 1) | POS + Web | Satu berhasil, satu error 422 |
+| 4 | Debounce search (ketik cepat) | POS | Hanya 1 request API terkirim |
+| 5 | Hold & Recall cart + validasi harga | POS | Harga ter-update, notifikasi muncul |
+| 6 | Fire & Forget (reset state post-checkout) | POS | State kosong instan tanpa reload |
+| 7 | ARIMA dengan missing dates + outlier | Admin + Flask | Grafik muncul, MAPE tercatat |
+| 8 | Badge rekomendasi di storefront | E-Commerce | Badge muncul di produk trending |
+| 9 | Cronjob ARIMA jam 01:00 WITA | System | Log terisi, cache ter-update |
+| 10 | Export CSV | Admin | File valid, data Web + POS menyatu |
+
+---
+
+## ⚠️ Analisis Cacat Logika & Alur
+
+Berikut adalah **cacat-cacat** yang saya temukan dari 8 dokumen perencanaan:
+
+---
+
+### Cacat #1: Endpoint Checkout E-Commerce Tanpa Autentikasi (KRITIS)
+
+> [!CAUTION]
+> **File:** [Perancangan Modul E-Commerce.md](file:///c:/laragon/www/Diana_fashion/laravel/Perancangan%20Modul%20E-Commerce.md) — Baris 116-120
+
+**Masalah:** Route `POST /api/storefront/checkout` diletakkan di grup **publik** (tanpa middleware `auth`). Ini berarti **siapa pun bisa menembak API checkout tanpa login**, yang memungkinkan:
+- Spam checkout untuk menghabiskan stok (stok terpotong saat `pending`)
+- Bot abuse / DDoS terhadap stok inventory
+- Order tanpa identitas pelanggan (tidak bisa dilacak)
+
+**Solusi:** Pindahkan checkout ke grup `auth:sanctum` atau setidaknya buat middleware `auth:sanctum` opsional yang jika tidak login, wajibkan input nomor WA/nama sebagai identitas guest.
+
+---
+
+### Cacat #2: Stok Terpotong Saat Pending, Bukan Saat Completed (KRITIS)
+
+> [!WARNING]
+> **File:** [Perancangan Modul E-Commerce.md](file:///c:/laragon/www/Diana_fashion/laravel/Perancangan%20Modul%20E-Commerce.md) — Baris 40-41
+> **File:** [Dokumentasi Testing & Output.md](file:///c:/laragon/www/Diana_fashion/flask/Dokumentasi%20Testing%20%26%20Output.md) — Baris 42-43
+
+**Masalah:** Desain menyatakan *"Laravel menggunakan lockForUpdate() untuk memotong stok secara instan"* saat checkout web (status menjadi `pending`). Kemudian di POS, kasir ACC → status `completed`, tapi stok **tidak dipotong lagi** (sudah terpotong di web).
+
+Ini menciptakan **vulnerability besar**: jika pelanggan checkout web lalu **tidak pernah bayar** (tidak ada mekanisme expiry), stok akan **terkunci selamanya** sampai kasir manually reject. Dalam skenario peak season, ini bisa melumpuhkan inventory.
+
+**Solusi:** Tambahkan mekanisme **auto-expire** untuk pesanan pending. Misalnya:
+- Pesanan pending > 12 jam → otomatis canceled + restock (sudah disebut samar di testing doc tapi **tidak ada implementasinya** di dokumen manapun)
+- Implementasikan di Scheduler/Cronjob Laravel
+
+---
+
+### Cacat #3: Inkonsistensi Nama Kolom `qty` vs `qty_ordered`
+
+> [!WARNING]
+> **File:** [Dokumentasi Migrasi & Model.md](file:///c:/laragon/www/Diana_fashion/laravel/Dokumentasi%20Setup%20Migrasi%20%26%20Model.md) — Baris 86 (kolom = `qty`)
+> **File:** [Dokumentasi Microservice ARIMA.md](file:///c:/laragon/www/Diana_fashion/flask/Dokumentasi%20Microservice%20ARIMA%20%26%20Pipeline.md) — Baris 184 (`$row->sum('qty_ordered')`)
+
+**Masalah:** Di migration, kolom didefinisikan sebagai `qty` pada tabel `order_items`. Namun di `ArimaController.php`, agregasi data historis menggunakan `$row->sum('qty_ordered')`. Kolom `qty_ordered` **tidak ada** di skema database. Ini akan menyebabkan **runtime error** saat menjalankan prediksi ARIMA.
+
+**Solusi:** Seragamkan menjadi `qty` di seluruh codebase, atau rename kolom di migration menjadi `qty_ordered`.
+
+---
+
+### Cacat #4: Tidak Ada Model PredictionLog & Relasi User
+
+> [!NOTE]
+> **File:** [Dokumentasi Microservice ARIMA.md](file:///c:/laragon/www/Diana_fashion/flask/Dokumentasi%20Microservice%20ARIMA%20%26%20Pipeline.md) — Baris 22-35
+
+**Masalah:** Migration `prediction_logs` dibuat dan `PredictionLog::create()` dipanggil di controller, tapi **tidak ada instruksi untuk membuat Model `PredictionLog`** beserta `$fillable` dan relasi `belongsTo(User)`. Di Vue template (baris 334), `log.user.name` diakses melalui eager loading `PredictionLog::with('user:id,name')`, tapi relasi ini tidak didefinisikan.
+
+**Solusi:** Tambahkan `php artisan make:model PredictionLog` dengan `$fillable` dan relasi `belongsTo(User::class)`.
+
+---
+
+### Cacat #5: Duplikasi Endpoint ARIMA Proxy
+
+> [!NOTE]
+> **File:** [Perancangan Modul Admin.md](file:///c:/laragon/www/Diana_fashion/laravel/Perancangan%20Modul%20Admin.md) — Baris 73
+> **File:** [Dokumentasi Microservice ARIMA.md](file:///c:/laragon/www/Diana_fashion/flask/Dokumentasi%20Microservice%20ARIMA%20%26%20Pipeline.md) — Baris 170
+
+**Masalah:** Ada dua endpoint berbeda untuk proxy ARIMA:
+- `POST /api/admin/predict-arima` → `AdminDashboardController::proxyArimaRequest()`
+- `POST /api/admin/predict` → `ArimaController::runPrediction()`
+
+Ini membingungkan. Dua controller menangani hal yang sama.
+
+**Solusi:** Konsolidasi menjadi satu endpoint dan satu controller (`ArimaController`). Hapus `proxyArimaRequest` dari `AdminDashboardController`.
+
+---
+
+### Cacat #6: Pencarian Produk LIKE Tanpa Indexing yang Tepat
+
+> [!NOTE]
+> **File:** [Dokumentasi Migrasi & Model.md](file:///c:/laragon/www/Diana_fashion/laravel/Dokumentasi%20Setup%20Migrasi%20%26%20Model.md) — Baris 210
+
+**Masalah:** Dokumentasi mengklaim pencarian `Product::where('sku', 'like', "%$keyword%")` akan berjalan dalam milidetik karena ada `->index()`. Ini **salah secara teknis database**. Index B-Tree MySQL **TIDAK** bekerja untuk query `LIKE '%keyword%'` (leading wildcard). Index hanya efektif untuk `LIKE 'keyword%'` (prefix match).
+
+**Solusi:**
+- Untuk pencarian POS (SKU exact/prefix): gunakan `LIKE 'keyword%'` (index efektif)
+- Untuk pencarian nama: tambahkan **FULLTEXT index** pada kolom `name`, atau gunakan pencarian prefix saja karena dataset toko fashion kecil (~ratusan produk) sehingga full scan masih acceptable
+
+---
+
+### Cacat #7: Export CSV Tidak Menggunakan StreamedResponse dengan Benar
+
+> [!NOTE]
+> **File:** [Perancangan Modul Admin.md](file:///c:/laragon/www/Diana_fashion/laravel/Perancangan%20Modul%20Admin.md) — Baris 108-135
+
+**Masalah:** Meskipun menggunakan `StreamedResponse`, kode **masih memanggil `->get()`** yang memuat semua data ke memori sekaligus (baris 113). Ini menghilangkan tujuan streaming. Untuk puluhan ribu baris, ini tetap bisa menyebabkan **memory limit exceeded**.
+
+**Solusi:** Gunakan `->cursor()` atau `->chunk()` sebagai pengganti `->get()`:
+```php
+$orders = Order::where('status', 'completed')
+    ->whereBetween('created_at', [...])
+    ->orderBy('created_at', 'asc')
+    ->cursor(); // Lazy loading
+```
+
+---
+
+### Cacat #8: MAPE Menggunakan In-Sample Prediction (Bias Tinggi)
+
+> [!WARNING]
+> **File:** [Dokumentasi Microservice ARIMA.md](file:///c:/laragon/www/Diana_fashion/flask/Dokumentasi%20Microservice%20ARIMA%20%26%20Pipeline.md) — Baris 123-124
+
+**Masalah:** MAPE dihitung menggunakan `predict_in_sample()` yang membandingkan prediksi model terhadap **data yang sudah digunakan untuk training** (in-sample). Ini menghasilkan **MAPE yang terlalu optimis** (bias) dan tidak mencerminkan kemampuan prediksi sebenarnya.
+
+**Solusi:** Gunakan **train-test split** (misalnya 80/20) atau **cross-validation** time series:
+```python
+# Split data
+train = ts_data[:-periods]
+test = ts_data[-periods:]
+model = auto_arima(train, ...)
+test_preds = model.predict(n_periods=len(test))
+mape = mean_absolute_percentage_error(test, test_preds) * 100
+# Kemudian refit dengan seluruh data untuk forecast final
+model.update(test)
+forecast_values = model.predict(n_periods=periods)
+```
+
+---
+
+### Cacat #9: Cronjob Produk Unggulan Hardcoded
+
+> [!NOTE]
+> **File:** [Dokumentasi Microservice ARIMA.md](file:///c:/laragon/www/Diana_fashion/flask/Dokumentasi%20Microservice%20ARIMA%20%26%20Pipeline.md) — Baris 242
+
+**Masalah:** Daftar produk untuk cronjob ARIMA **di-hardcode** di `routes/console.php`:
+```php
+$topProducts = ['Tunik molek', 'rok plisket', 'gamis set outer alzea'];
+```
+Jika admin menambah/menghapus produk, cronjob tidak otomatis menyesuaikan.
+
+**Solusi:** Tarik produk unggulan secara dinamis dari database, misalnya top 5 produk dengan order terbanyak dalam 30 hari terakhir:
+```php
+$topProducts = OrderItem::select('products.name')
+    ->join('products', 'order_items.product_id', '=', 'products.id')
+    ->join('orders', 'order_items.order_id', '=', 'orders.id')
+    ->where('orders.status', 'completed')
+    ->where('orders.created_at', '>=', now()->subDays(30))
+    ->groupBy('products.name')
+    ->orderByRaw('SUM(order_items.qty) DESC')
+    ->limit(5)
+    ->pluck('products.name');
+```
+
+---
+
+### Cacat #10: Inertia.js vs Vue Router — Ambiguitas Arsitektur
+
+> [!WARNING]
+> **File:** [Perancangan Modul E-Commerce.md](file:///c:/laragon/www/Diana_fashion/laravel/Perancangan%20Modul%20E-Commerce.md) — Baris 7
+> **File:** [Perancangan Modul Admin.md](file:///c:/laragon/www/Diana_fashion/laravel/Perancangan%20Modul%20Admin.md) — Baris 68-85
+
+**Masalah:** Dokumen menyebut dua pendekatan secara bergantian:
+- Setup awal: `breeze:install vue` → menginstall **Inertia.js**
+- Modul Admin & POS: menggunakan **API endpoints** (`routes/api.php`) + `axios` + `auth:sanctum`
+- Directory mapping: Menyebut entry point terpisah (`admin.js`, `pos.js`, `app.js`) yang menunjukkan **Vue Router SPA** bukan Inertia
+
+**Inertia.js** tidak menggunakan `routes/api.php` atau `axios` — ia menggunakan server-side routing (`routes/web.php`) dan `Inertia::render()`. Kedua pendekatan ini **saling bertentangan secara arsitektural**.
+
+**Solusi:** Pilih salah satu:
+- **Opsi A (Rekomendasi):** Gunakan **Inertia.js** penuh. Hapus semua `routes/api.php`, gunakan `routes/web.php` dengan `Inertia::render()`. Tidak perlu Sanctum API tokens.
+- **Opsi B:** Gunakan **Vue Router SPA** murni. Jangan install Breeze/Inertia. Setup Vue 3 manual dengan Vite, gunakan `api.php` + Sanctum SPA authentication (cookie-based). Buat 3 SPA terpisah (`app.js`, `pos.js`, `admin.js`) dengan masing-masing Blade entry point.
+
+---
+
+### Cacat #11: Tidak Ada Mekanisme Auto-Cancel Pesanan Kadaluarsa
+
+> [!CAUTION]
+> **File:** [Dokumentasi Testing & Output.md](file:///c:/laragon/www/Diana_fashion/flask/Dokumentasi%20Testing%20%26%20Output.md) — Baris 79
+
+**Masalah:** Di dokumen testing (Skenario 3.3, butir 3), disebutkan:
+> *"Pesanan Web yang masih pending lebih dari 12 jam otomatis berubah menjadi canceled dan stok bertambah kembali."*
+
+Namun, **tidak ada satu pun dokumen perancangan** yang menjelaskan implementasi fitur ini. Tidak ada migration field `expired_at`, tidak ada Scheduler/Cronjob, dan tidak ada controller method untuk auto-cancel.
+
+Ini terkait langsung dengan **Cacat #2** — tanpa auto-cancel, stok akan terkunci selamanya oleh pesanan pending.
+
+**Solusi:** Tambahkan Scheduler di `routes/console.php`:
+```php
+Schedule::call(function () {
+    $expiredOrders = Order::where('status', 'pending')
+        ->where('channel', 'web')
+        ->where('created_at', '<', now()->subHours(12))
+        ->get();
+
+    foreach ($expiredOrders as $order) {
+        DB::transaction(function () use ($order) {
+            $order->update(['status' => 'canceled']);
+            foreach ($order->items as $item) {
+                $item->product->increment('stock', $item->qty);
+            }
+        });
+    }
+})->hourly()->timezone('Asia/Makassar');
+```
+
+---
+
+### Cacat #12: Keamanan — Password Dikembalikan di Response JSON
+
+> [!CAUTION]
+> **File:** [Perancangan Modul Admin.md](file:///c:/laragon/www/Diana_fashion/laravel/Perancangan%20Modul%20Admin.md) — Baris 104
+
+**Masalah:** Pada `AdminStaffController.store()`, response mengembalikan:
+```php
+return response()->json(['message' => '...', 'data' => $staff]);
+```
+Objek `$staff` berisi **hash password** yang terekspos ke client. Meskipun ini hash (bukan plaintext), ini tetap **bad practice** keamanan.
+
+**Solusi:** Tambahkan `$hidden` di Model User (sudah bawaan Laravel), dan pastikan response menggunakan Resource/Transformer:
+```php
+return response()->json([
+    'message' => 'Akun Karyawan Berhasil Dibuat',
+    'data' => $staff->only(['id', 'name', 'email', 'role'])
+]);
+```
+
+---
+
+## Ringkasan Cacat
+
+| # | Severity | Kategori | Deskripsi Singkat |
+|---|----------|----------|-------------------|
+| 1 | 🔴 KRITIS | Keamanan | Checkout tanpa auth → spam abuse |
+| 2 | 🔴 KRITIS | Logika Bisnis | Stok terkunci selamanya tanpa expiry |
+| 3 | 🟡 SEDANG | Data | Inkonsistensi kolom `qty` vs `qty_ordered` |
+| 4 | 🟢 RINGAN | Kode | Model PredictionLog tidak didefinisikan |
+| 5 | 🟢 RINGAN | Arsitektur | Duplikasi endpoint ARIMA proxy |
+| 6 | 🟡 SEDANG | Performa | LIKE '%x%' tidak memanfaatkan index |
+| 7 | 🟡 SEDANG | Performa | StreamedResponse + get() = memory leak |
+| 8 | 🟡 SEDANG | Akurasi AI | MAPE in-sample = bias tinggi |
+| 9 | 🟢 RINGAN | Maintainability | Produk cronjob hardcoded |
+| 10 | 🔴 KRITIS | Arsitektur | Inertia vs Vue Router saling bertentangan |
+| 11 | 🔴 KRITIS | Logika Bisnis | Auto-cancel pending tidak diimplementasi |
+| 12 | 🟡 SEDANG | Keamanan | Password hash di response JSON |
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Keputusan arsitektur kritis yang perlu dijawab sebelum eksekusi:**
+>
+> 1. **Inertia.js atau Vue Router SPA?** (Cacat #10) — Ini mempengaruhi seluruh arsitektur frontend. Saya merekomendasikan **Opsi B (Vue Router SPA murni)** karena lebih sesuai dengan desain 3 entry point terpisah dan API-first approach yang sudah dirancang di dokumen.
+>
+> 2. **Apakah checkout web wajib login?** (Cacat #1) — Atau boleh guest checkout dengan input nama + nomor WA?
+>
+> 3. **Berapa lama timeout pesanan pending?** (Cacat #2 & #11) — Dokumen testing menyebut 12 jam. Apakah ini sudah sesuai?
+>
+> 4. **Apakah MAPE harus diperbaiki ke train-test split?** (Cacat #8) — Atau cukup in-sample untuk MVP?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- `php artisan test` — Unit test untuk checkout flow, race condition, RBAC
+- Browser testing: Race condition test dengan 2 browser simultan
+- `python -m pytest` — Test endpoint Flask ARIMA
+
+### Manual Verification
+- Semua 10 skenario testing di Fase 8
+- Acceptance criteria: Tidak ada CORS error, stok tidak pernah negatif, POS lancar, CSV valid
