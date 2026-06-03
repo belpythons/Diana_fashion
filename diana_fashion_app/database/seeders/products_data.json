@@ -1,0 +1,709 @@
+[
+    {
+        "category": "Atasan",
+        "name": "Tunik molek",
+        "price": 260000.0,
+        "stock": 1,
+        "sku": "ATS-001"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja khaliqa",
+        "price": 250000.0,
+        "stock": 2,
+        "sku": "ATS-002"
+    },
+    {
+        "category": "Atasan",
+        "name": "tunik adeva",
+        "price": 275000.0,
+        "stock": 1,
+        "sku": "ATS-003"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja zara",
+        "price": 160000.0,
+        "stock": 1,
+        "sku": "ATS-004"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse disiko",
+        "price": 180000.0,
+        "stock": 1,
+        "sku": "ATS-005"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse kami",
+        "price": 399000.0,
+        "stock": 1,
+        "sku": "ATS-006"
+    },
+    {
+        "category": "Atasan",
+        "name": "tunik disiko",
+        "price": 250000.0,
+        "stock": 1,
+        "sku": "ATS-007"
+    },
+    {
+        "category": "Atasan",
+        "name": "tunik warna",
+        "price": 260000.0,
+        "stock": 1,
+        "sku": "ATS-008"
+    },
+    {
+        "category": "Atasan",
+        "name": "kaos santai tebal",
+        "price": 160000.0,
+        "stock": 1,
+        "sku": "ATS-009"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja hmf",
+        "price": 180000.0,
+        "stock": 1,
+        "sku": "ATS-010"
+    },
+    {
+        "category": "Atasan",
+        "name": "wtch kaos tipis",
+        "price": 70000.0,
+        "stock": 1,
+        "sku": "ATS-011"
+    },
+    {
+        "category": "Atasan",
+        "name": "cardigan mardi",
+        "price": 170000.0,
+        "stock": 1,
+        "sku": "ATS-012"
+    },
+    {
+        "category": "Atasan",
+        "name": "sweatear rajut",
+        "price": 135000.0,
+        "stock": 3,
+        "sku": "ATS-013"
+    },
+    {
+        "category": "Atasan",
+        "name": "kaos kate spade",
+        "price": 165000.0,
+        "stock": 1,
+        "sku": "ATS-014"
+    },
+    {
+        "category": "Atasan",
+        "name": "kaos gentle women",
+        "price": 150000.0,
+        "stock": 2,
+        "sku": "ATS-015"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse warna",
+        "price": 190000.0,
+        "stock": 1,
+        "sku": "ATS-016"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja salur",
+        "price": 130000.0,
+        "stock": 1,
+        "sku": "ATS-017"
+    },
+    {
+        "category": "Atasan",
+        "name": "jaket jeans",
+        "price": 140000.0,
+        "stock": 1,
+        "sku": "ATS-018"
+    },
+    {
+        "category": "Atasan",
+        "name": "jaket jeans crop",
+        "price": 120000.0,
+        "stock": 1,
+        "sku": "ATS-019"
+    },
+    {
+        "category": "Atasan",
+        "name": "sweater rajut uniqlo",
+        "price": 145000.0,
+        "stock": 1,
+        "sku": "ATS-020"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja silk",
+        "price": 145000.0,
+        "stock": 1,
+        "sku": "ATS-021"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse geulis",
+        "price": 299000.0,
+        "stock": 1,
+        "sku": "ATS-022"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja kotak",
+        "price": 110000.0,
+        "stock": 2,
+        "sku": "ATS-023"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse bkk",
+        "price": 165000.0,
+        "stock": 1,
+        "sku": "ATS-024"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja jeans",
+        "price": 180000.0,
+        "stock": 2,
+        "sku": "ATS-025"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja adeva",
+        "price": 190000.0,
+        "stock": 1,
+        "sku": "ATS-026"
+    },
+    {
+        "category": "Atasan",
+        "name": "kaos merah putih",
+        "price": 110000.0,
+        "stock": 1,
+        "sku": "ATS-027"
+    },
+    {
+        "category": "Atasan",
+        "name": "kaos lengan pendek",
+        "price": 65000.0,
+        "stock": 1,
+        "sku": "ATS-028"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja polo",
+        "price": 175000.0,
+        "stock": 2,
+        "sku": "ATS-029"
+    },
+    {
+        "category": "Atasan",
+        "name": "kaos knit",
+        "price": 120000.0,
+        "stock": 1,
+        "sku": "ATS-030"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja day",
+        "price": 150000.0,
+        "stock": 1,
+        "sku": "ATS-031"
+    },
+    {
+        "category": "Atasan",
+        "name": "kaos bordir",
+        "price": 110000.0,
+        "stock": 1,
+        "sku": "ATS-032"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse brokat",
+        "price": 165000.0,
+        "stock": 1,
+        "sku": "ATS-033"
+    },
+    {
+        "category": "Atasan",
+        "name": "kaos nabil",
+        "price": 100000.0,
+        "stock": 2,
+        "sku": "ATS-034"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse day",
+        "price": 140000.0,
+        "stock": 1,
+        "sku": "ATS-035"
+    },
+    {
+        "category": "Atasan",
+        "name": "tunik cringkle",
+        "price": 130000.0,
+        "stock": 1,
+        "sku": "ATS-036"
+    },
+    {
+        "category": "Atasan",
+        "name": "tunik silk",
+        "price": 150000.0,
+        "stock": 2,
+        "sku": "ATS-037"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja motif",
+        "price": 175000.0,
+        "stock": 2,
+        "sku": "ATS-038"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja oversize",
+        "price": 180000.0,
+        "stock": 1,
+        "sku": "ATS-039"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse lengan balon",
+        "price": 175000.0,
+        "stock": 1,
+        "sku": "ATS-040"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja katun",
+        "price": 160000.0,
+        "stock": 1,
+        "sku": "ATS-041"
+    },
+    {
+        "category": "Atasan",
+        "name": "kemeja linen",
+        "price": 170000.0,
+        "stock": 1,
+        "sku": "ATS-042"
+    },
+    {
+        "category": "Atasan",
+        "name": "tunik denosa vest",
+        "price": 165000.0,
+        "stock": 1,
+        "sku": "ATS-043"
+    },
+    {
+        "category": "Atasan",
+        "name": "blouse vest",
+        "price": 170000.0,
+        "stock": 2,
+        "sku": "ATS-044"
+    },
+    {
+        "category": "Atasan",
+        "name": "hoodie oversize",
+        "price": 165000.0,
+        "stock": 1,
+        "sku": "ATS-045"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok plisket",
+        "price": 150000.0,
+        "stock": 1,
+        "sku": "BWH-001"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana jeans kulot",
+        "price": 175000.0,
+        "stock": 1,
+        "sku": "BWH-002"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana knit",
+        "price": 120000.0,
+        "stock": 2,
+        "sku": "BWH-003"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana kulot scuba",
+        "price": 145000.0,
+        "stock": 1,
+        "sku": "BWH-004"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok scuba",
+        "price": 130000.0,
+        "stock": 1,
+        "sku": "BWH-005"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana kulot linen",
+        "price": 110000.0,
+        "stock": 1,
+        "sku": "BWH-006"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok jeans",
+        "price": 180000.0,
+        "stock": 1,
+        "sku": "BWH-007"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok span",
+        "price": 100000.0,
+        "stock": 1,
+        "sku": "BWH-008"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana kantor",
+        "price": 120000.0,
+        "stock": 3,
+        "sku": "BWH-009"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana jeans skena",
+        "price": 175000.0,
+        "stock": 1,
+        "sku": "BWH-010"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana knit cutbray",
+        "price": 110000.0,
+        "stock": 1,
+        "sku": "BWH-011"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana jeans cutbray",
+        "price": 160000.0,
+        "stock": 1,
+        "sku": "BWH-012"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok silk",
+        "price": 155000.0,
+        "stock": 1,
+        "sku": "BWH-013"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana pinkdose",
+        "price": 135000.0,
+        "stock": 1,
+        "sku": "BWH-014"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok tutu",
+        "price": 150000.0,
+        "stock": 2,
+        "sku": "BWH-015"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok bunga",
+        "price": 130000.0,
+        "stock": 1,
+        "sku": "BWH-016"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana jeans sobek",
+        "price": 180000.0,
+        "stock": 1,
+        "sku": "BWH-017"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana kulot polyster",
+        "price": 145000.0,
+        "stock": 1,
+        "sku": "BWH-018"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana jeans baggy pants",
+        "price": 210000.0,
+        "stock": 1,
+        "sku": "BWH-019"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana kulit salur",
+        "price": 130000.0,
+        "stock": 1,
+        "sku": "BWH-020"
+    },
+    {
+        "category": "Bawahan",
+        "name": "barrel pants",
+        "price": 175000.0,
+        "stock": 1,
+        "sku": "BWH-021"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok rempel",
+        "price": 145000.0,
+        "stock": 1,
+        "sku": "BWH-022"
+    },
+    {
+        "category": "Bawahan",
+        "name": "celana knit kulot",
+        "price": 120000.0,
+        "stock": 2,
+        "sku": "BWH-023"
+    },
+    {
+        "category": "Bawahan",
+        "name": "rok plisket bludru",
+        "price": 145000.0,
+        "stock": 1,
+        "sku": "BWH-024"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis set outer alzea",
+        "price": 450000.0,
+        "stock": 1,
+        "sku": "GMS-001"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis set omg",
+        "price": 375000.0,
+        "stock": 1,
+        "sku": "GMS-002"
+    },
+    {
+        "category": "Gamis",
+        "name": "set syari hanggono",
+        "price": 550000.0,
+        "stock": 1,
+        "sku": "GMS-003"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis nunu lolo",
+        "price": 275000.0,
+        "stock": 1,
+        "sku": "GMS-004"
+    },
+    {
+        "category": "Gamis",
+        "name": "set syari bungas",
+        "price": 450000.0,
+        "stock": 1,
+        "sku": "GMS-005"
+    },
+    {
+        "category": "Gamis",
+        "name": "set syari omeiro",
+        "price": 500000.0,
+        "stock": 1,
+        "sku": "GMS-006"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis ataya",
+        "price": 250000.0,
+        "stock": 1,
+        "sku": "GMS-007"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis geulis",
+        "price": 375000.0,
+        "stock": 1,
+        "sku": "GMS-008"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis set anisa",
+        "price": 400000.0,
+        "stock": 1,
+        "sku": "GMS-009"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis warna",
+        "price": 250000.0,
+        "stock": 2,
+        "sku": "GMS-010"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis set hijab kamari",
+        "price": 350000.0,
+        "stock": 1,
+        "sku": "GMS-011"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis heaven lights",
+        "price": 575000.0,
+        "stock": 1,
+        "sku": "GMS-012"
+    },
+    {
+        "category": "Gamis",
+        "name": "set syari eldeena",
+        "price": 450000.0,
+        "stock": 1,
+        "sku": "GMS-013"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis salacco",
+        "price": 250000.0,
+        "stock": 1,
+        "sku": "GMS-014"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis brokat marevi",
+        "price": 350000.0,
+        "stock": 2,
+        "sku": "GMS-015"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis organza",
+        "price": 250000.0,
+        "stock": 1,
+        "sku": "GMS-016"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis set inara",
+        "price": 320000.0,
+        "stock": 1,
+        "sku": "GMS-017"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis jersey",
+        "price": 250000.0,
+        "stock": 1,
+        "sku": "GMS-018"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis zara",
+        "price": 250000.0,
+        "stock": 1,
+        "sku": "GMS-019"
+    },
+    {
+        "category": "Gamis",
+        "name": "set syari anisa",
+        "price": 550000.0,
+        "stock": 1,
+        "sku": "GMS-020"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis warna",
+        "price": 320000.0,
+        "stock": 2,
+        "sku": "GMS-021"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis alghani",
+        "price": 190000.0,
+        "stock": 1,
+        "sku": "GMS-022"
+    },
+    {
+        "category": "Gamis",
+        "name": "set syari bungas",
+        "price": 420000.0,
+        "stock": 1,
+        "sku": "GMS-023"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis silk",
+        "price": 350000.0,
+        "stock": 1,
+        "sku": "GMS-024"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis ceruty",
+        "price": 320000.0,
+        "stock": 1,
+        "sku": "GMS-025"
+    },
+    {
+        "category": "Gamis",
+        "name": "set syari aeraa",
+        "price": 450000.0,
+        "stock": 2,
+        "sku": "GMS-026"
+    },
+    {
+        "category": "Gamis",
+        "name": "set hijab outer alzea",
+        "price": 550000.0,
+        "stock": 1,
+        "sku": "GMS-027"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis salur",
+        "price": 185000.0,
+        "stock": 1,
+        "sku": "GMS-028"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis linen",
+        "price": 170000.0,
+        "stock": 2,
+        "sku": "GMS-029"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis syakka",
+        "price": 230000.0,
+        "stock": 1,
+        "sku": "GMS-030"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis abaya set",
+        "price": 350000.0,
+        "stock": 1,
+        "sku": "GMS-031"
+    },
+    {
+        "category": "Gamis",
+        "name": "gamis rayon",
+        "price": 195000.0,
+        "stock": 1,
+        "sku": "GMS-032"
+    }
+]
