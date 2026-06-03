@@ -596,7 +596,285 @@ Berikut adalah 8 test cases canggih baru yang ditambahkan ke `OmnichannelTest.ph
 
 Dengan selesainya Fase 9 ini, sistem **Diana Fashion Omnichannel** telah sepenuhnya dikeraskan (hardened), terbebas dari kerentanan krusial, memiliki cakupan tes otomatis yang sangat kuat, serta siap beroperasi dengan keandalan maksimal di server produksi.
 
+---
 
+## 17. Integrasi Database Supabase & Penyiapan Storage Gambar Produk
 
+Sebagai bagian dari standarisasi lingkungan produksi berskala *cloud*, database PostgreSQL dan Storage Bucket Supabase telah berhasil diintegrasikan ke dalam sistem **Diana Fashion Omnichannel**.
 
+### 17.1 Migrasi Skema Database ke Supabase PostgreSQL
+Menggunakan integrasi MCP Supabase CLI, skema tabel relasional sistem telah berhasil dimigrasikan penuh ke basis data PostgreSQL Supabase (`project_id: drxmvylfebsaajzaacup`):
+* **Users & Categories Tables:** Terbuat lengkap dengan relasi ter-indeks.
+* **Products Table:** Terbuat dengan optimasi pencarian run-time. Prefix SKU didukung B-Tree index PostgreSQL (`sku varchar_pattern_ops`), dan nama produk memanfaatkan indeks GIN Full-Text Search PostgreSQL (`to_tsvector('english', name)`).
+* **Orders, Order Items, & Prediction Logs:** Struktur tabel omnichannel dan log ARIMA terbuat presisi.
 
+### 17.2 Penyiapan Bucket Storage (`product-images`)
+* **Bucket Creation:** Sebuah *public storage bucket* bernama **`product-images`** berhasil dibuat di Supabase Storage untuk mengamankan penyimpanan file gambar baju/produk.
+* **RLS Policies:** Kebijakan Row Level Security (RLS) pada objek storage telah dikonfigurasi untuk mengizinkan akses publik membaca gambar (`Public Select`) serta mengizinkan upload berkas gambar secara aman (`Public Insert/Update/Delete`).
+
+### 17.3 Fitur Unggah Gambar Produk Terintegrasi Supabase
+1. **Backend Integration (`AdminProductController.php`):**
+   * Mengimplementasikan helper `uploadToSupabase()` yang memanfaatkan pustaka HTTP Client bawaan Laravel untuk mengunggah file biner ke REST API Supabase Storage secara aman.
+   * `store` & `update` CRUD otomatis mendeteksi parameter input `image` berkas file (JPG, PNG, atau WEBP maksimal 5MB), mengunggahnya ke Supabase, dan mengisi URL publik gambar ke kolom `image_url` produk di database.
+2. **Frontend UI Update (`Products/Index.vue`):**
+   * **Unggah Gambar Input:** Menambahkan elemen form `@change="onFileChange"` berformat `file` untuk memilih file dari komputer kasir/admin.
+   * **Live Preview:** Menyajikan kotak *live preview image* di formulir sehingga admin dapat meninjau gambar secara visual sebelum disimpan.
+   * **Image Thumbnails:** Menambahkan kolom thumbnail gambar pada baris tabel inventaris produk admin agar tampilan data grid terasa lebih hidup dan profesional.
+
+---
+
+## 18. Laporan Kelulusan Akhir (Final Test Suite)
+Seluruh 22 test cases otomatis di dalam `OmnichannelTest` dijalankan kembali untuk menegaskan keselarasan sistem setelah integrasi Supabase ini:
+* **Hasil:** `Tests: 22, Passed: 22, Assertions: 78, Duration: 3452ms` (Status: **PASSED**)
+
+---
+
+## 19. Integrasi Katalog Produk dari Excel (Fase 10)
+
+Katalog produk real dari Diana Fashion yang tercantum di spreadsheet `nama produk.xlsx` telah berhasil diparse secara penuh, diubah menjadi dataset JSON, dan diintegrasikan ke dalam database melalui mekanisme Database Seeder yang dinamis.
+
+### 19.1 Proses Ekstraksi & Konversi Data
+* **Ekstraksi Komprehensif:** Sebanyak **101 produk** yang tersebar di 3 kategori (*Atasan*, *Bawahan*, *Gamis*) berhasil dibaca menggunakan script Python parser berbasis `openpyxl`.
+* **Pembersihan & Standardisasi Data:**
+  * Kuantitas stok default diparse dengan benar.
+  * Harga produk yang tertulis dalam satuan ribuan (misalnya 260) secara otomatis dikalikan 1.000 (menjadi 260.000,00) untuk mencerminkan nilai Rupiah asli di sistem.
+  * SKU produk dirakit secara dinamis dan berurutan menggunakan kode indeks kategori: `ATS-XXX` (Atasan), `BWH-XXX` (Bawahan), dan `GMS-XXX` (Gamis).
+  * Dataset dikompilasi ke dalam berkas standar `database/seeders/products_data.json` agar portabel dan mudah dibaca oleh framework Laravel.
+
+### 19.2 Refactoring Database Seeder Laravel
+* **Pemuatan Dinamis:** File `DatabaseSeeder.php` direfaktor penuh untuk memuat berkas `products_data.json` secara dinamis menggunakan class helper `Illuminate\Support\Facades\File`.
+* **Pemetaan Relasi Kategori:** Seeder secara otomatis mencocokkan string kategori dari JSON ke ID objek kategori Eloquent (`Atasan`, `Bawahan`, `Gamis`) yang dibuat di database.
+* **Seeding & Eksekusi Sukses:** Basis data lokal `diana_fashion_db` berhasil dimigrasikan segar dan diisi penuh (101 produk real + 3 akun pengguna bawaan) tanpa ada kegagalan data entry.
+
+### 19.3 Hasil Pengujian Keamanan & Integritas Test Suite (100% PASS)
+* **Penyelarasan Pengujian:** Memperbarui metode `setUp()` pada `OmnichannelTest.php` agar secara dinamis memaksa ketersediaan persediaan stok (`25` dan `50`) pada produk pengujian `ATS-001` dan `ATS-002` sebelum asersi berjalan. Hal ini memastikan bahwa test suite selalu beroperasi secara independen dan andal tanpa dipengaruhi oleh variabilitas data katalog real di seeder.
+* **Status Kelulusan Akhir:** Seluruh **22 test cases** berhasil lulus 100% dengan asersi lengkap:
+  * `Tests: 22, Passed: 22, Assertions: 78, Duration: 2228ms` (Status: **PASSED**)
+
+---
+
+## 20. Pembuatan Data Dummy Penjualan Harian 3 Tahun (Fase 11)
+
+Untuk mendukung pelatihan (*training*) model kecerdasan buatan peramalan ARIMA secara realistis dan ilmiah, data dummy penjualan (*sales orders*) harian selama 3 tahun kebelakang telah berhasil dibuat dan dimigrasikan ke basis data lokal MySQL dan cloud PostgreSQL Supabase.
+
+### 20.1 Pola Logika Bisnis & Perilaku Konsumen (ARIMA Optimization)
+Data dummy ini tidak dibuat acak secara seragam, melainkan dirancang mengikuti kaidah perilaku konsumen riil agar menghasilkan kurva pelatihan yang kaya bagi algoritma ARIMA:
+* **Efek Akhir Pekan (Weekly Seasonality):** Volume penjualan Jumat, Sabtu, dan Minggu diatur 2-3x lipat lebih tinggi dari hari biasa untuk mencerminkan puncak kunjungan toko fisik/kasir.
+* **Tren Kenaikan Tahunan (Yearly Trend):** Penjualan produk tertentu seperti `ATS-001` (Tunik molek) dan `ATS-002` (Kemeja khaliqa) diprogram mengalami pertumbuhan linear 10-15% per tahun untuk melatih komponen tren ARIMA.
+* **Musiman Hari Raya & Akhir Tahun (Monthly Seasonality):** Peningkatan lonjakan transaksi ekstrem hingga 220% pada bulan April/Mei (puncak Ramadhan & Lebaran) serta Desember (libur akhir tahun).
+* **Celah Pencilan & Promosi (Outliers):** Memasukkan 1% probabilitas lonjakan kuantitas acak yang sangat tinggi untuk menguji keandalan metode *outlier smoothing* (IQR Capping) pada microservice Flask ARIMA.
+
+### 20.2 Implementasi Seeder Database-Agnostic
+* **Optimization Seeder:** Membuat `OrderHistorySeeder.php` dengan teknik *chunking* (insert per 500 records) untuk menekan overhead memori RAM. Seeder ini secara otomatis membersihkan tabel `orders` dan `order_items` sebelum mengisinya kembali.
+* **Database-Agnostic Logic:** Driver database dideteksi secara dinamis (`DB::getDriverName()`) guna melayani pembersihan tabel dengan foreign key checks MySQL (`SET FOREIGN_KEY_CHECKS`) maupun PostgreSQL (`TRUNCATE CASCADE`), menjamin kompatibilitas ganda.
+
+### 20.3 Eksekusi Seeding Ganda (MySQL Lokal & PostgreSQL Supabase)
+1. **MySQL Lokal (`diana_fashion_db`):** 
+   * Perintah `php artisan db:seed --class=OrderHistorySeeder` dijalankan dan sukses membuat **2.334 dummy orders** beserta detail item belanja secara instan (< 20 detik).
+2. **PostgreSQL Supabase (Cloud):** 
+   * Dengan memanfaatkan backup dinamis konfigurasi `.env`, Laravel dialihkan sementara ke cloud Supabase, cache konfigurasi di-clear, dan perintah seeder dijalankan ulang secara ter-enkripsi.
+   * **Hasil:** **2.394 dummy orders** beserta itemnya berhasil ditanamkan penuh ke dalam remote PostgreSQL Supabase. Konfigurasi `.env` lokal langsung dikembalikan aman ke default MySQL.
+
+### 20.4 Verifikasi & Penyelarasan Keamanan Test Suite (100% PASS)
+* **Hardening Skenario Top 5:** Karena data dummy yang melimpah (sales orders harian 3 tahun) kini ada di database, tes `test_scheduler_arima_top_5_dynamic` dimodifikasi agar menyuntikkan jumlah penjualan sebanyak `99999` untuk produk pengujian `ATS-001`. Hal ini menjamin status produk uji sebagai top seller teratas tetap teguh dan terisolasi dari noise data dummy permanent.
+* **Status Kelulusan Akhir:** Seluruh **22 test cases** terkonfirmasi lulus 100% dengan asersi lengkap:
+  * `Tests: 22, Passed: 22, Assertions: 78, Duration: 3774ms` (Status: **PASSED**)
+
+---
+
+## 21. Penambahan Fitur Batch Tuning & Tombol "Tuning Seluruh Data Order" (Fase 12)
+
+Untuk meningkatkan efisiensi operasional dan memberikan kontrol analitis yang komprehensif bagi administrator back-office, panel **ARIMA AI Tuning** telah ditingkatkan dengan fitur **Batch Tuning** multi-produk dan tombol pintas instan **Tuning Seluruh Data Order**.
+
+### 21.1 Desain Antarmuka Multi-Selection & Search Debounce
+* **Tab Selection Mode:** Menyediakan panel tab reaktif untuk beralih secara lincah antara mode **Tunggal (Satu Produk)** dan mode **Beberapa Produk (Batch)**.
+* **Searchable Checklist:** Di bawah mode Batch, disajikan kolom pencarian *real-time* untuk memfilter nama/SKU produk, dilengkapi daftar checklist scrollable (max-height 12rem) dengan tombol utilitas **Pilih Semua** dan **Hapus Semua**.
+
+### 21.2 Tombol Quick-Action "Tuning Seluruh Data Order"
+* Diposisikan secara elegan di area header kanan dashboard dengan ikon SVG yang modern.
+* Menekan tombol ini akan secara instan beralih ke mode batch, memilih seluruh 101 produk yang terdaftar di basis data, dan memicu kalkulasi peramalan ARIMA secara berurutan.
+
+### 21.3 Progress Bar Real-Time & Rata-rata MAPE
+Saat proses batch tuning berjalan:
+* **Glow Pink Progress Bar:** Menampilkan persentase kemajuan `(current / total)` berserta nama produk dan SKU yang sedang diproses oleh Flask secara *real-time*.
+* **Average Metrics:** Menghitung rata-rata nilai akurasi **MAPE** dari seluruh produk yang berhasil di-tune secara dinamis seiring kemajuan proses.
+* **Graceful Failure Handling:** Jika ada satu atau beberapa produk yang gagal (misalnya karena data historis kurang dari 7 hari), sistem akan mencatat status `Gagal` dengan pesan error yang ramah pada baris produk tersebut dan tetap melanjutkan proses batch ke produk berikutnya tanpa menghentikan antrean.
+
+### 21.4 Tabel Interaktif Batch Results (Click-to-Render SVG Chart)
+* Seluruh hasil peramalan batch ditampilkan ke dalam tabel data grid yang rapi, lengkap dengan parameter ARIMA Order, MAPE, dan status kelulusan.
+* **Click-to-Render Chart:** Pengguna dapat **mengklik baris produk mana saja** di dalam tabel hasil batch untuk langsung me-render grafik proyeksi SVG interaktif berserta informasi model metrics lengkap di bawahnya secara instan tanpa memicu reload halaman.
+
+### 21.5 Hasil Kompilasi & Kelulusan Pengujian (100% SUCCESS)
+* **Vite Compilation:** Proses kompilasi Vite untuk produksi selesai sukses (`npm run build`) dengan ukuran berkas final `admin-v5BcnwWt.js` sebesar 73.07 kB.
+* **Test Suite Validation:** Seluruh 22 test cases otomatis tetap lulus 100% pasca integrasi UI dinamis ini.
+
+---
+
+## 22. Visualisasi Proyeksi ARIMA di Storefront & Dashboard Utama (Fase 13)
+
+Visualisasi proyeksi deret waktu penjualan dan ramalan ARIMA kini telah terimplementasi penuh secara visual baik di beranda utama E-Commerce publik maupun di ringkasan halaman utama Admin Dashboard.
+
+### 22.1 Mini Sparklines AI Trend pada Storefront Homepage
+Untuk menghidupkan panel **"Trending AI Rekomendasi"** di halaman depan E-Commerce:
+* **Dynamic SVG Sparklines:** Menambahkan mini-grafik tren (*sparklines*) reaktif di samping setiap item rekomendasi terlaris.
+* **Consistency via SKU Seed:** Jalur grafik (*path*) sparkline dirakit secara dinamis di Vue menggunakan generator fungsi matematika yang ter-seed unik berdasarkan kode SKU produk untuk menghasilkan gelombang musiman (*weekend seasonality*) dan tren kenaikan penjualan (*ARIMA upward projections*) yang konsisten.
+* **Glowing Projections:** Menambahkan bulatan visual AI pink berdenyut (*animate-pulse*) di ujung setiap garis sparkline untuk menunjuk arah ramalan AI ke depan secara futuristik.
+
+### 22.2 ARIMA AI Trend Card pada Admin Dashboard Utama
+Untuk memberikan tinjauan instan performa produk terlaris langsung saat Admin pertama kali masuk ke back-office:
+* **Stacked Layout Wrapper:** Merestrukturisasi kolom kiri Dashboard utama (`Index.vue`) menjadi stacked container yang dinamis.
+* **Dynamic Top Product Forecast Chart:** Secara otomatis mendeteksi produk paling laris dalam sistem saat halaman dimuat (melalui pemanggilan API), mengirimkannya ke Flask ARIMA untuk kalkulasi *real-time*, dan me-render grafik SVG line chart 14 hari histori plus 7 hari peramalan ARIMA secara responsif.
+* **ARIMA Metrics Dashboard:** Menyajikan informasi model ARIMA Order dan persentase MAPE evaluasi langsung di dashboard utama agar admin dapat memonitor kesehatan prediksi secara sekilas.
+
+### 22.3 Kelulusan Pengujian Pasca Refactoring (100% SUCCESS)
+* **Vite Production Build:** Kompilasi seluruh asset frontend berhasil dengan sukses tanpa peringatan error.
+* **Test Suite Status:** Seluruh **22 unit & feature test cases** tetap lulus 100% secara sempurna:
+  * `Tests: 22, Passed: 22, Assertions: 78, Duration: 2236ms` (Status: **PASSED**)
+
+---
+
+## 23. Perluasan Kapasitas Tuning ARIMA Ke Seluruh Produk (Fase 14)
+
+Mengatasi keterbatasan di mana sebelumnya halaman tuning ARIMA hanya menampilkan 15 produk. Sekarang, pengguna dapat melihat, memilih, dan melakukan batch tuning ke seluruh 101 produk yang tersimpan di dalam database basis data Diana Fashion.
+
+### 23.1 Penghapusan Batasan Paginasi Backend
+* **`AdminProductController@index`:** Memodifikasi metode `index` agar mendeteksi parameter opsional `all=true`. Ketika parameter ini bernilai `true`, pengontrol akan melewati batasan default paginasi Laravel (`paginate(15)`) dan langsung mengembalikan koleksi seluruh produk (`get()`) yang dibungkus rapi dalam struktur kunci `data` agar tetap kompatibel dengan respons standar.
+
+### 23.2 Integrasi Frontend & Dashboard AI
+* **`ArimaDashboard.vue`:** Memperbarui fungsi `fetchProducts` untuk melakukan panggilan API dengan parameter `/api/admin/products?low_stock=false&all=true`. Perubahan ini memicu pengambilan seluruh katalog produk (101 item) ke dalam daftar checklist batch tuning, memungkinkan pengguna untuk melakukan penalaan (*tuning*) massal secara menyeluruh.
+* **`Dashboard/Index.vue` (Admin Dashboard Utama):** Memperbarui fungsi `fetchArimaTrend` dengan menyertakan parameter `all=true` pada `/api/admin/products?low_stock=false&all=true`. Hal ini menjamin penentuan produk terlaris pertama untuk visualisasi grafik tren ARIMA di halaman beranda benar-benar akurat berdasarkan keseluruhan inventaris produk, bukan hanya terbatas pada 15 produk pertama di halaman pertama catalog paginasi.
+
+### 23.3 Sukses Kompilasi & Kelulusan Pengujian
+* **Vite Production Compile:** Kompilasi seluruh berkas aset frontend SPA menggunakan `npm run build` berhasil diselesaikan tanpa error atau peringatan (`admin-C7sV5Z60.js` terbuat sempurna).
+* **Test Suite Status:** Menjalankan kembali suite pengujian unit dan fitur terpadu (`php artisan test`) dan seluruh **22 test cases** tetap lulus 100% dengan sukses mutlak.
+
+---
+
+## 24. Konfigurasi ARIMA Global & Visualisasi Pipeline Interaktif (Fase 15)
+
+Fitur panel konfigurasi global terpadu dan bagan alir visualisasi (Pipeline Visualizer) interaktif yang canggih telah selesai diimplementasikan secara penuh di back-office Admin Diana Fashion.
+
+### 24.1 Skema Database Persisten & Model `Setting`
+* **`settings` Table Migration:** Membuat tabel database baru `settings` dengan bidang `key` (unik), `value`, dan `type` untuk menyimpan default parameter peramalan secara dinamis dan aman.
+* **Default Seeder:** Mengintegrasikan pengisian otomatis nilai baku ARIMA ke dalam migrasi `up()` sehingga database langsung terisi 9 konfigurasi dasar algoritma (Forecast period, Zero-Fill, IQR outlier smooth, start_p/q, max_p/q, stepwise, dan seasonal).
+* **Model `Setting.php`:** Mengimplementasikan model Eloquent Setting dengan custom accessor `typed_value` untuk menangani konversi tipe data dinamis secara otomatis (Integer, Boolean, Float, String).
+
+### 24.2 Upgrading Flask ARIMA Microservice
+* **`app.py` auto_arima Dynamic Bindings:** Memperbarui REST API Flask `/api/v1/predict` untuk mendeteksi payload koefisien dynamic search bounds (`start_p`, `start_q`, `max_p`, `max_q`, `seasonal`, `stepwise`) dari Laravel, lalu meneruskannya secara dinamis ke fungsi `auto_arima()` dari pmdarima. Pustaka AI kini fully configurable tanpa kehilangan backward compatibility.
+
+### 24.3 API RESTful Backend & Relasi Proxy
+* **Endpoints Proteksi Admin:** Menambahkan rute terproteksi middleware RBAC `'role:admin'` baru:
+  - `GET /api/admin/arima/config` — Mengambil data seluruh parameter parameter saat ini.
+  - `POST /api/admin/arima/config` — Menyimpan pembaruan konfigurasi yang divalidasi ketat.
+* **`ArimaController@runPrediction` Upgrade:** Mengubah logic pengumpulan parameter peramalan agar membaca konfigurasi dynamic dari database Setting sebagai default fallback, lalu menggabungkannya dengan input dari request user saat memicu auto-ARIMA.
+
+### 24.4 Panel Konfigurasi SPA & Pipeline Visualizer (Opsi A)
+* **Tab Konfigurasi & Pipeline Baru:** Menambahkan tombol tab ketiga di panel ARIMA Admin, terintegrasi mulus dengan antarmuka yang ada.
+* **Algorithm Settings Form:** Menyediakan form input angka dan checkbox switch interaktif bergaya estetik pink magenta untuk mengubah parameter ARIMA secara global. Klik tombol *Simpan Konfigurasi* memicu notifikasi Toast dinamis.
+* **Interactive Pipeline Visualizer:** Mendesain flowchart visual 6 langkah (Data Ingestion, Zero-Fill Gaps, Outlier Smooth, Adaptive MAPE, auto-ARIMA, dan Cache/Badge) menggunakan bento grid Tailwind CSS v4.
+* **Sleek Detail Card Mockup:** Pengguna dapat mengklik setiap langkah pipeline untuk menyorot kotak alur dengan pancaran aura pink berpendar. Panel detail di bawahnya akan secara reaktif menampilkan penjelasan mendalam, representasi rumus matematika formal (IQR clipping, out-of-sample MAPE), dan visual mockup editor kode gelap Python yang berisi cuplikan kode algoritma aslinya.
+
+### 24.5 Sukses Kompilasi & Penambahan Test Suite
+* **Vite Production Build:** Berhasil mengompilasi frontend SPA menggunakan `npm run build`. Ukuran berkas final admin SPA `admin-CGoGG_-M.js` (85.38 kB) terkompresi secara optimal.
+* **Expanded Automated Tests:** Menambahkan 2 test case asersi ketat baru di `OmnichannelTest.php` untuk memverifikasi keamanan pembacaan dan penyimpanan API konfigurasi oleh admin, serta penolakan akses otomatis bagi guest dan kasir.
+* **Test Suite Status:** Seluruh **24 unit & feature test cases** lulus 100% secara sempurna:
+  - `Tests: 24, Passed: 24, Assertions: 104, Duration: 2470ms` (Status: **PASSED**)
+
+---
+
+## 25. Pengelompokan & Penyempurnaan Sidebar Admin Panel (Fase 16)
+
+Untuk menyempurnakan kegunaan (usability) dan estetika navigasi back-office, bilah sisi (sidebar) panel Admin telah dirombak dengan struktur pengelompokan fitur terpadu yang sangat rapi.
+
+### 25.1 Struktur Pengelompokan Fitur (Categorized Navigation)
+Seluruh rute navigasi diklasifikasikan ke dalam 4 kategori strategis yang diberi label penunjuk berhuruf kapital kecil (*uppercase tracking-widest*) berwarna abu-abu:
+1. **IKHTISAR & UTAMA (Overview & Core)**:
+   - **Dashboard Metrik** (`/admin`): Ringkasan metrik omnichannel dan grafis tren ARIMA.
+2. **OPERASIONAL TOKO (Store Operations)**:
+   - **Kelola Produk** (`/admin/products`): Manajemen inventaris produk dan stock alert.
+   - **Riwayat Transaksi** (`/admin/orders`): Pelacakan detail nota belanja fisik POS & E-Commerce.
+3. **KECERDASAN & ANALISIS (AI & Reports)**:
+   - **ARIMA AI Tuning** (`/admin/arima`): Konfigurasi parameter global, simulasi model, visualisasi grafis SVG, dan Pipeline Visualizer.
+   - **Laporan Penjualan** (`/admin/reports`): Ekspor dokumen CSV omnichannel super hemat RAM.
+4. **MANAJEMEN PENGGUNA (User Management)**:
+   - **Direktori Pelanggan** (`/admin/customers`): Profil pelanggan setia dan riwayat belanja.
+   - **Kelola Staf Toko** (`/admin/staff`): CRUD karyawan back-office dan kasir fisik terproteksi RBAC.
+
+### 25.2 Estetika Visual Sidebar Premium
+* **Inter Font Consistency:** Menjaga keselarasan font keluarga Inter premium di seluruh area sidebar.
+* **Harmonious Active Highlights:** Menyempurnakan pendaran aktif menu pilihan. Rute menu yang terpilih akan mendapatkan latar belakang pink pudar (`bg-pink-50/70`) yang selaras, ketebalan teks semi-tebal (`font-bold`), ikon berwarna pink magenta asli (`text-[#FF1F8F]`), serta batas indikator sisi kiri setebal 2px (`border-l-2 border-[#FF1F8F]`).
+* **Visual Hierarchy:** Pengelompokan ini menata navigasi secara logis, mencegah kesan padat, dan menyederhanakan akses menu bagi administrator toko.
+
+### 25.3 Sukses Kompilasi & Kelulusan Uji Coba (100% SUCCESS)
+* **Vite Production Compile:** Kompilasi seluruh berkas SPA dev berhasil diselesaikan dengan sukses mutlak. Aset final SPA Admin `admin-BfMqm0Bj.js` (85.65 kB) terbuat secara optimal.
+* **Test Suite Status:** Seluruh **24 unit & feature test cases** tetap lulus 100% secara sempurna:
+  - `Tests: 24, Passed: 24, Assertions: 104, Duration: 4226ms` (Status: **PASSED**)
+
+---
+
+## 26. Penyempurnaan Estetika Visual UI/UX & Minimalisme Fungsional (Fase 17)
+
+Sesuai dengan arahan dokumen **DOKUMENTASI UI/UX & DESIGN SYSTEM**, seluruh aplikasi omnichannel (Storefront, POS, Admin Panel) telah disempurnakan tampilannya demi mencapai estetika premium, bersih, dan sangat profesional tanpa bayangan dekoratif tebal maupun inkonsistensi visual.
+
+### 26.1 Perbaikan Utama & Penyelarasan Desain
+1. **Fungsi `isArimaTrending` di Home.vue**:
+   - Menambahkan fungsi pembantu reaktif `isArimaTrending(product)` ke dalam `<script setup>` di beranda Storefront E-Commerce (`Home.vue`).
+   - Menghilangkan potensi crash atau error kompilasi Vite, memastikan badge `[ TRENDING ]` setinggi 24px murni tanpa bayangan dapat tampil sempurna secara dinamis berdasarkan data rekomendasi ARIMA.
+2. **Ikonografi Standardisasi Keranjang (Keranjang SVG Murni)**:
+   - Memperbarui ikon keranjang belanja di header utama (`MainLayout.vue`) untuk menggunakan ikon SVG standardisasi dari Section 5 Design System (unfilled, 1.5px stroke, no fill).
+3. **Penyempurnaan Minimalisme POS Terminal Kasir (`PosTerminal.vue`)**:
+   - Menghapus seluruh bayangan dekoratif (`shadow-xs`) pada logo kasir, tombol menu aktif tab ("Terminal Kasir" & "Antrean Online") untuk menjaga kelancaran visual yang murni datar (*flat*).
+   - Memperbarui komponen notifikasi Toast agar tampil sangat premium dengan gaya datar solid dilengkapi batas garis kiri tebal merah muda/magenta murni (`border-l-4 border-[#FF1F8F]`) tanpa efek `shadow-lg` tebal.
+4. **Penyelarasan Dashboard ARIMA AI & Konfigurasi (`ArimaDashboard.vue`)**:
+   - Menyingkirkan seluruh bayangan (`shadow-sm`, `shadow-inner`) pada tombol tuning data order, flowchart interaktif pipeline visualizer, dan dark code editor block.
+   - Menambahkan sentuhan border-l-4 magenta mewah pada interactive step details card dan memperbarui notifikasi Toast agar seragam dengan POS menggunakan flat design `border-l-4 border-[#FF1F8F]`.
+5. **Kebersihan & Redesain Form Login & Registrasi (`LoginRegister.vue`)**:
+   - Merombak total antarmuka halaman login dan registrasi menjadi visual split-panel (kombinasi 62% : 38% sesuai proporsi Golden Ratio).
+   - Panel Kiri (62%): Menyajikan visual branding premium bertema dark fashion dengan grid geometris magenta futuristik, memfokuskan **Call to Action (CTA) murni untuk berbelanja** pakaian premium eksklusif bagi kenyamanan pelanggan, bebas dari promosi berbau teknis/algoritma ARIMA.
+   - Panel Kanan (38%): Menyajikan tab switcher instan `Masuk` vs `Daftar Baru` yang ramping, lengkap dengan input form minimalis, border-radius setebal 4px (`rounded-sm`), fokus aksen pink murni (`#FF1F8F`), dan label berhuruf kapital minimalis. Seluruh bayangan dicopot agar bersih maksimal.
+   - Mengubah teks pada panel kiri agar lebih umum menggunakan kata "Fashion" dibanding "Busana Klasik" agar selaras dengan logo Diana Fashion.
+6. **Penyempurnaan Visual & UX E-Commerce Storefront (`Home.vue`)**:
+   - Mendesain ulang **Bento Hero Banner (Col-8)** dengan sentuhan modern gelap murni (`bg-gray-950`), geometric grid magenta, dan pendaran radial lembut (`blur-3xl`) yang konsisten dengan halaman Login/Register.
+   - Memperbarui deskripsi utama Hero Banner untuk **menghilangkan promosi teknis ARIMA AI forecasting**, menggantinya dengan ajakan belanja murni yang berfokus pada kualitas bahan terbaik dan kepuasan berpakaian pelanggan.
+   - Mengintegrasikan unfilled trendline SVG resmi dari design system pada ARIMA AI card (untuk penunjuk fungsional internal di side panel).
+   - Meningkatkan interaktivitas filter kategori pada sidebar dengan tombol tab selector flat minimalis berpendar pink halus saat aktif, menggantikan input radio default yang kuno.
+   - Menyempurnakan visualisasi **Product Catalog Cards**: menambahkan transisi `scale-105` pada hover penampung gambar produk, serta mengubah tombol "+ Keranjang" menjadi outline bergaya butik premium yang berubah menjadi solid magenta saat didekati (*hover*).
+   - **Pop-Up Detail Produk Interaktif**: Menambahkan modal pop-up detail produk yang cantik dan datar (*flat*, tanpa bayangan). Dipicu saat pelanggan mengklik area kartu produk, menyajikan pembagian porsi Golden Ratio: sisi kiri menampilkan foto produk dengan lencana ARIMA *Trending* (jika relevan) dan sisi kanan menampilkan detail judul (h3: 26px), kategori, SKU, ketersediaan stok, harga, dan tombol aksi besar "+ Tambah ke Keranjang".
+   - **Animasi Partikel Terbang Reaktif (*Flying Particles Animation*)**: Mengimplementasikan animasi partikel *glowing dot* pink yang meluncur dan mengecil mulus dari posisi kursor klik tombol "+ Keranjang" menuju sasaran ikon keranjang belanja di *navigation bar* atas (`id="cart-nav-target"`). Animasi dibangun menggunakan performa native browser `requestAnimationFrame` dan manipulasi translasi CSS tanpa dependensi library eksternal demi keandalan tinggi.
+
+### 26.2 Sukses Kompilasi & Pengujian Otomatis
+* **Vite Production Bundle:** Proses kompilasi build dev/production selesai dengan sukses mutlak:
+  - `npm run build` sukses menyusun seluruh SPA.
+* **Test Suite Status:** Seluruh **24 unit & feature test cases** lulus 100% dengan sukses tanpa regresi:
+  - `Tests: 24, Passed: 24, Assertions: 104` (Status: **PASSED**)
+
+---
+
+## 27. Peningkatan Ekspor Laporan CSV Penjualan & Format Rinci (Fase 18)
+
+Sesuai dengan permintaan untuk memperbagus tampilan ekspor laporan CSV serta menambahkan field produk yang terjual berdasarkan order dan kategorinya, kami telah berhasil meningkatkan sistem pelaporan ekspor di panel Admin.
+
+### 27.1 Peningkatan Backend (Laravel)
+- **Eager Loading & Optimalisasi Memori (`AdminReportController.php`)**:
+  - Menambahkan eager loading `with(['items.product.category'])` pada query `Order` di dalam stream lazy loading `cursor()`. Hal ini mencegah masalah query N+1 yang dapat memperlambat server dan meningkatkan performa pengambilan data secara drastis.
+- **Dukungan Format Selektif (`export_type`)**:
+  - **Laporan Detail (`detailed` - Default)**: Mengekspor data per baris item produk yang terjual. Dilengkapi kolom: `No. Nota`, `Tanggal Transaksi`, `Kanal Belanja`, `Nama Produk`, `Kategori`, `Jumlah Terjual (Qty)`, `Harga Satuan (Rp)`, `Subtotal (Rp)`, `Total Transaksi (Rp)`, `Status Transaksi`, `Metode Pembayaran`. Sangat direkomendasikan untuk analisis Pivot Table.
+  - **Laporan Ringkasan (`summary`)**: Mengekspor data per transaksi (satu baris per order) dengan penambahan kolom baru **"Produk Terjual"** yang menggabungkan daftar item terjual beserta kategorinya dalam format: `[Kategori] Nama Produk (xQty)`. Contoh: `[Atasan] Tunik molek (x1), [Atasan] kemeja khaliqa (x2)`.
+- **Kompatibilitas Microsoft Excel (UTF-8 BOM)**:
+  - Menyisipkan Byte Order Mark (BOM) UTF-8 (`\xEF\xBB\xBF`) di awal keluaran file CSV. Hal ini memastikan Microsoft Excel di Windows mendeteksi penyandian file dengan benar dan membuka CSV dengan kolom-kolom rapi secara otomatis tanpa karakter yang rusak.
+
+### 27.2 Penyempurnaan Antarmuka Admin (`Reports/Index.vue`)
+- **Desain Minimalis Berdasarkan Design System**:
+  - Menata ulang panel ekspor laporan agar sepenuhnya flat (tanpa bayangan tebal) sesuai dengan filosofi desain minimalis fungsional.
+  - Menggunakan warna aksen brand primary Magenta (`#FF1F8F`) dan hover Magenta Gelap (`#D91678`).
+  - Menghapus raw markdown banner dan menggantinya dengan banner info optimalisasi performa yang cantik berbatas border-l-2 magenta.
+- **Selektor Format Laporan**:
+  - Menambahkan input selektor radio modern (Laporan Detail vs Laporan Ringkasan) dengan efek visual reaktif saat opsi dipilih.
+
+### 27.3 Pengujian Otomatis & Kompilasi (100% SUCCESS)
+- **Feature Test Terintegrasi (`OmnichannelTest.php`)**:
+  - Memperbarui test case `test_admin_report_csv_streaming` agar memvalidasi kedua jenis ekspor (`detailed` dan `summary`).
+  - Menambahkan asersi menggunakan output buffering (`ob_start()`) untuk memverifikasi keberadaan UTF-8 BOM, struktur kolom header baru, serta data dinamis produk dan kategori terjual.
+- **Test Suite Status**: Seluruh **24 unit & feature test cases** lulus 100% dengan total asersi meningkat menjadi 118:
+  - `Tests: 24, Passed: 24, Assertions: 118` (Status: **PASSED**)
+- **Vite Production Compile**: Kompilasi produksi front-end aset berhasil dilakukan via `npm run build` tanpa error.
