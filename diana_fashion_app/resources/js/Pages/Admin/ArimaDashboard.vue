@@ -5,6 +5,7 @@
             <div>
                 <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">ARIMA AI Forecasting Engine</h3>
                 <p class="text-xs text-gray-500 mt-1">Mengonfigurasi parameter tuning model run-time dan meramalkan permintaan stok produk secara real-time.</p>
+                <p class="text-[10px] text-gray-400 mt-1">Terakhir Tuning Global: <span class="text-[#FF1F8F] font-bold font-mono">{{ lastGlobalTuning }}</span></p>
             </div>
             <div>
                 <button type="button" @click="tuneAllProducts" :disabled="predictLoading || batchLoading" class="bg-gray-900 hover:bg-black text-white text-xs font-bold px-4 py-2.5 rounded-sm uppercase tracking-wider transition-colors disabled:opacity-40 flex items-center space-x-2 cursor-pointer">
@@ -82,12 +83,22 @@
                             </label>
                         </div>
 
-                        <div class="pt-4 border-t border-gray-100 flex justify-end">
-                            <button type="submit" :disabled="predictLoading || batchLoading" class="bg-[#FF1F8F] hover:bg-[#D91678] disabled:opacity-40 text-white text-xs font-bold px-6 py-2.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer text-center">
-                                <span v-if="predictLoading">Mengalkulasi ARIMA di Flask...</span>
-                                <span v-else-if="batchLoading">Batch Tuning Berjalan...</span>
-                                <span v-else>Jalankan Prediksi AI</span>
-                            </button>
+                        <div class="pt-4 border-t border-gray-100 flex justify-between items-center">
+                            <div class="text-[10px] text-gray-400 font-semibold">
+                                <span v-if="selectionMode === 'single' && currentConfigTuningTime">
+                                    Tuning Terakhir Produk: <span class="text-gray-900 font-bold font-mono">{{ currentConfigTuningTime }}</span>
+                                </span>
+                            </div>
+                            <div class="flex space-x-3">
+                                <button v-if="selectionMode === 'single'" type="button" @click="saveProductTuningConfig" :disabled="predictLoading || !form.product_id" class="border border-gray-300 hover:border-gray-400 text-gray-700 text-xs font-bold px-4 py-2.5 rounded-sm uppercase tracking-wider transition-colors disabled:opacity-40 cursor-pointer">
+                                    Simpan Setelan
+                                </button>
+                                <button type="submit" :disabled="predictLoading || batchLoading" class="bg-[#FF1F8F] hover:bg-[#D91678] disabled:opacity-40 text-white text-xs font-bold px-6 py-2.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer text-center">
+                                    <span v-if="predictLoading">Mengalkulasi ARIMA di Flask...</span>
+                                    <span v-else-if="batchLoading">Batch Tuning Berjalan...</span>
+                                    <span v-else>Jalankan Prediksi AI</span>
+                                </button>
+                            </div>
                         </div>
                     </form>
 
@@ -121,11 +132,21 @@
                             </label>
                         </div>
 
-                        <div class="pt-4 border-t border-gray-100 flex justify-end">
-                            <button type="submit" :disabled="predictLoading" class="bg-[#FF1F8F] hover:bg-[#D91678] disabled:opacity-40 text-white text-xs font-bold px-6 py-2.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer text-center">
-                                <span v-if="predictLoading">Mengalkulasi ARIMA di Flask...</span>
-                                <span v-else>Jalankan Prediksi AI Toko</span>
-                            </button>
+                        <div class="pt-4 border-t border-gray-100 flex justify-between items-center">
+                            <div class="text-[10px] text-gray-400 font-semibold">
+                                <span v-if="globalConfigTuningTime">
+                                    Tuning Terakhir Global: <span class="text-gray-900 font-bold font-mono">{{ globalConfigTuningTime }}</span>
+                                </span>
+                            </div>
+                            <div class="flex space-x-3">
+                                <button type="button" @click="saveGlobalTuningConfig" :disabled="predictLoading" class="border border-gray-300 hover:border-gray-400 text-gray-700 text-xs font-bold px-4 py-2.5 rounded-sm uppercase tracking-wider transition-colors disabled:opacity-40 cursor-pointer">
+                                    Simpan Setelan
+                                </button>
+                                <button type="submit" :disabled="predictLoading" class="bg-[#FF1F8F] hover:bg-[#D91678] disabled:opacity-40 text-white text-xs font-bold px-6 py-2.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer text-center">
+                                    <span v-if="predictLoading">Mengalkulasi ARIMA di Flask...</span>
+                                    <span v-else>Jalankan Prediksi AI Toko</span>
+                                </button>
+                            </div>
                         </div>
                     </form>
 
@@ -418,11 +439,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
 
 const products = ref([]);
 const logs = ref([]);
+const lastGlobalTuning = computed(() => {
+    const globalLog = logs.value.find(l => l.product_name === 'GLOBAL_SALES');
+    return globalLog ? formatDate(globalLog.created_at) : 'Belum pernah';
+});
 const toast = ref('');
 let toastTimer = null;
 
@@ -452,6 +477,9 @@ const globalForm = reactive({
     fill_missing_dates: true,
     smooth_outliers: true
 });
+
+const currentConfigTuningTime = ref(null);
+const globalConfigTuningTime = ref(null);
 
 // Real-time chart states
 const showChart = ref(false);
@@ -868,10 +896,114 @@ const formatDate = (dateStr) => {
     });
 };
 
+// Watch product_id to load custom tuning config
+watch(() => form.product_id, async (newVal) => {
+    if (!newVal) {
+        currentConfigTuningTime.value = null;
+        return;
+    }
+    try {
+        const response = await axios.get(`/api/admin/arima/tuning-configs/${newVal}`);
+        if (response.data) {
+            form.forecast_periods = response.data.forecast_periods;
+            form.fill_missing_dates = response.data.fill_missing_dates;
+            form.smooth_outliers = response.data.smooth_outliers;
+            currentConfigTuningTime.value = response.data.last_tuned_at ? formatDate(response.data.last_tuned_at) : 'Belum pernah';
+        }
+    } catch (e) {
+        console.error('Gagal mengambil setelan produk ARIMA:', e);
+    }
+});
+
+// Watch selectionMode to load global custom tuning config
+watch(selectionMode, async (newMode) => {
+    if (newMode === 'global') {
+        try {
+            const response = await axios.get('/api/admin/arima/tuning-configs/global');
+            if (response.data) {
+                globalForm.forecast_periods = response.data.forecast_periods;
+                globalForm.fill_missing_dates = response.data.fill_missing_dates;
+                globalForm.smooth_outliers = response.data.smooth_outliers;
+                globalConfigTuningTime.value = response.data.last_tuned_at ? formatDate(response.data.last_tuned_at) : 'Belum pernah';
+            }
+        } catch (e) {
+            console.error('Gagal mengambil setelan global ARIMA:', e);
+        }
+    }
+});
+
+// Save Product Tuning Config
+const saveProductTuningConfig = async () => {
+    if (!form.product_id) return;
+    try {
+        showToast('Menyimpan setelan tuning produk...');
+        const response = await axios.post('/api/admin/arima/tuning-configs', {
+            product_id: String(form.product_id),
+            forecast_periods: form.forecast_periods,
+            fill_missing_dates: form.fill_missing_dates,
+            smooth_outliers: form.smooth_outliers,
+            start_p: configForm.arima_start_p,
+            start_q: configForm.arima_start_q,
+            max_p: configForm.arima_max_p,
+            max_q: configForm.arima_max_q,
+            seasonal: configForm.arima_seasonal,
+            stepwise: configForm.arima_stepwise
+        });
+        showToast(response.data.message || 'Setelan produk berhasil disimpan!');
+        
+        // Refresh tuning timestamp info
+        const response2 = await axios.get(`/api/admin/arima/tuning-configs/${form.product_id}`);
+        currentConfigTuningTime.value = response2.data.last_tuned_at ? formatDate(response2.data.last_tuned_at) : 'Belum pernah';
+    } catch (error) {
+        showToast(error.response?.data?.message || 'Gagal menyimpan setelan.');
+    }
+};
+
+// Save Global Tuning Config
+const saveGlobalTuningConfig = async () => {
+    try {
+        showToast('Menyimpan setelan tuning global...');
+        const response = await axios.post('/api/admin/arima/tuning-configs', {
+            product_id: 'global',
+            forecast_periods: globalForm.forecast_periods,
+            fill_missing_dates: globalForm.fill_missing_dates,
+            smooth_outliers: globalForm.smooth_outliers,
+            start_p: configForm.arima_start_p,
+            start_q: configForm.arima_start_q,
+            max_p: configForm.arima_max_p,
+            max_q: configForm.arima_max_q,
+            seasonal: configForm.arima_seasonal,
+            stepwise: configForm.arima_stepwise
+        });
+        showToast(response.data.message || 'Setelan global berhasil disimpan!');
+        
+        // Refresh tuning timestamp info
+        const response2 = await axios.get('/api/admin/arima/tuning-configs/global');
+        globalConfigTuningTime.value = response2.data.last_tuned_at ? formatDate(response2.data.last_tuned_at) : 'Belum pernah';
+    } catch (error) {
+        showToast(error.response?.data?.message || 'Gagal menyimpan setelan.');
+    }
+};
+
+const fetchInitialGlobalConfig = async () => {
+    try {
+        const response = await axios.get('/api/admin/arima/tuning-configs/global');
+        if (response.data) {
+            globalForm.forecast_periods = response.data.forecast_periods;
+            globalForm.fill_missing_dates = response.data.fill_missing_dates;
+            globalForm.smooth_outliers = response.data.smooth_outliers;
+            globalConfigTuningTime.value = response.data.last_tuned_at ? formatDate(response.data.last_tuned_at) : 'Belum pernah';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+};
+
 onMounted(() => {
     fetchProducts();
     fetchLogs();
     fetchArimaConfig();
+    fetchInitialGlobalConfig();
 });
 
 </script>

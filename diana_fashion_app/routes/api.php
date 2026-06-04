@@ -56,6 +56,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:admin'])->group(functi
     Route::get('/arima-logs', [App\Http\Controllers\Admin\ArimaController::class, 'getLogs']);
     Route::get('/arima/config', [App\Http\Controllers\Admin\ArimaController::class, 'getConfig']);
     Route::post('/arima/config', [App\Http\Controllers\Admin\ArimaController::class, 'saveConfig']);
+    Route::get('/arima/tuning-configs/{product_id?}', [App\Http\Controllers\Admin\ArimaController::class, 'getTuningConfig']);
+    Route::post('/arima/tuning-configs', [App\Http\Controllers\Admin\ArimaController::class, 'saveTuningConfig']);
     Route::get('/orders/history', [App\Http\Controllers\Admin\AdminOrderController::class, 'getHistory']);
     Route::get('/sales/export', [App\Http\Controllers\Admin\AdminReportController::class, 'exportCSV']);
 

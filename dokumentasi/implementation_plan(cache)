@@ -1,0 +1,445 @@
+# Rencana Implementasi: Strategi Caching Data E-Commerce & Manajemen Admin Panel
+
+## Latar Belakang
+
+Aplikasi **Diana Fashion** saat ini mengambil data langsung dari PostgreSQL (Supabase) untuk setiap request. Pada skala produksi, hal ini dapat menyebabkan:
+- **Latensi tinggi** pada halaman storefront publik (katalog produk) yang diakses oleh banyak visitor
+- **Beban database berlebih** pada dashboard admin yang menjalankan query agregasi berat (SUM, COUNT, GROUP BY) setiap kali halaman dimuat
+- **Redundansi komputasi** pada data yang jarang berubah (kategori, konfigurasi ARIMA, rekomendasi)
+
+### Kondisi Saat Ini
+| Aspek | Status |
+|-------|--------|
+| Cache Driver | `database` (tabel `cache` di PostgreSQL via Supabase) |
+| Cache yang Sudah Ada | Hanya `arima_storefront_recommendations` (12 jam TTL) |
+| Redis | **Tidak tersedia** di environment production |
+| Endpoint Tanpa Cache | 12+ endpoint (storefront, dashboard, orders, products, customers, staff, reports) |
+
+### Keputusan Arsitektural
+
+| Keputusan | Hasil |
+|-----------|-------|
+| Cache Driver | `database` — tetap menggunakan tabel `cache` di PostgreSQL Supabase. Kode dirancang **driver-agnostic** agar mudah migrasi ke Redis di masa depan tanpa perubahan kode. |
+| TTL Storefront Produk | **10 menit** (600 detik) |
+| Halaman Cache Management | **Bukan halaman terpisah** — diintegrasikan sebagai tab di dalam halaman **"Pengaturan"** (Settings) baru |
+| Halaman Settings | Halaman baru berisi 2 tab: **Profil Admin** dan **Cache Management** |
+
+---
+
+## Proposed Changes
+
+### Fase 1: Cache Infrastructure — Service Class & Model Observers
+
+Membuat fondasi cache invalidation otomatis. Setiap kali data diubah (create/update/delete), cache terkait akan di-flush secara otomatis oleh Observer.
+
+#### [NEW] [CacheService.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Services/CacheService.php)
+Centralized cache helper class yang mendefinisikan semua cache key dan TTL:
+```php
+class CacheService
+{
+    // === Cache Key Prefixes ===
+    const STOREFRONT_PRODUCTS        = 'storefront:products';
+    const STOREFRONT_RECOMMENDATIONS = 'arima_storefront_recommendations';
+    const DASHBOARD_METRICS          = 'admin:dashboard:metrics';
+    const ADMIN_PRODUCTS_LIST        = 'admin:products:list';
+    const ADMIN_ORDERS_HISTORY       = 'admin:orders:history';
+    const ADMIN_CUSTOMERS_LIST       = 'admin:customers:list';
+    const ADMIN_STAFF_LIST           = 'admin:staff:list';
+    const ARIMA_CONFIG               = 'admin:arima:config';
+    const ARIMA_LOGS                 = 'admin:arima:logs';
+    const POS_PRODUCTS_SEARCH        = 'pos:products:search';
+    const POS_ONLINE_QUEUE           = 'pos:online:queue';
+
+    // === TTL Registry (detik) ===
+    const TTL_STOREFRONT      = 600;    // 10 menit — katalog produk publik
+    const TTL_DASHBOARD       = 300;    // 5 menit — metrik agregasi
+    const TTL_ADMIN_LIST      = 300;    // 5 menit — daftar admin (produk, order, dll)
+    const TTL_ARIMA_CONFIG    = 3600;   // 1 jam — konfigurasi ARIMA jarang berubah
+    const TTL_ARIMA_LOGS      = 120;    // 2 menit — log prediksi terbaru
+    const TTL_POS_QUEUE       = 60;     // 1 menit — antrean pesanan real-time
+    const TTL_RECOMMENDATIONS = 43200;  // 12 jam — rekomendasi AI storefront
+
+    // Helper: generate unique cache key dari prefix + query params
+    public static function key(string $prefix, array $params = []): string;
+
+    // Helper: flush semua cache entry yang dimulai dengan prefix tertentu
+    // Menggunakan query LIKE pada tabel `cache` karena driver database
+    public static function flushByPrefix(string $prefix): void;
+
+    // Helper: flush semua cache terkait produk
+    public static function flushProductCaches(): void;
+
+    // Helper: flush semua cache terkait order/transaksi
+    public static function flushOrderCaches(): void;
+
+    // Helper: flush semua cache terkait user
+    public static function flushUserCaches(): void;
+
+    // Helper: flush SELURUH cache aplikasi
+    public static function flushAll(): void;
+
+    // Helper: dapatkan daftar kategori cache + jumlah key aktif (untuk UI Settings)
+    public static function getStats(): array;
+}
+```
+
+> [!NOTE]
+> Karena menggunakan driver `database`, method `flushByPrefix()` akan melakukan query `DELETE FROM cache WHERE key LIKE 'prefix%'` langsung ke tabel cache di Supabase. Ini efisien karena prefix sudah terstruktur.
+
+#### [NEW] [ProductObserver.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Observers/ProductObserver.php)
+Observer pada model `Product` — menangkap event `created`, `updated`, `deleted`:
+- Memanggil `CacheService::flushProductCaches()` → menghapus cache:
+  - `storefront:products:*` (katalog publik)
+  - `admin:products:list:*` (daftar produk admin)
+  - `pos:products:search:*` (pencarian produk POS)
+  - `arima_storefront_recommendations` (rekomendasi AI)
+
+#### [NEW] [OrderObserver.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Observers/OrderObserver.php)
+Observer pada model `Order` — menangkap event `created`, `updated`:
+- Memanggil `CacheService::flushOrderCaches()` → menghapus cache:
+  - `admin:dashboard:metrics:*` (metrik pendapatan)
+  - `admin:orders:history:*` (riwayat transaksi)
+  - `pos:online:queue` (antrean pesanan web)
+  - `admin:arima:logs` (log prediksi — data baru dapat mempengaruhi analisis)
+
+#### [NEW] [UserObserver.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Observers/UserObserver.php)
+Observer pada model `User` — menangkap event `created`, `updated`, `deleted`:
+- Memanggil `CacheService::flushUserCaches()` → menghapus cache:
+  - `admin:customers:list:*`
+  - `admin:staff:list:*`
+
+#### [MODIFY] [AppServiceProvider.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Providers/AppServiceProvider.php)
+Mendaftarkan semua Observer pada method `boot()`:
+```php
+use App\Models\{Product, Order, User};
+use App\Observers\{ProductObserver, OrderObserver, UserObserver};
+
+public function boot(): void
+{
+    Product::observe(ProductObserver::class);
+    Order::observe(OrderObserver::class);
+    User::observe(UserObserver::class);
+}
+```
+
+---
+
+### Fase 2: Caching Layer — Storefront Publik (Prioritas Tertinggi)
+
+Storefront adalah entry point utama bagi pelanggan. Data produk relatif stabil sehingga caching 10 menit sangat efektif.
+
+#### [MODIFY] [StorefrontController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/StorefrontController.php)
+
+**`getProducts()`** — Cache TTL: 10 menit
+- Key di-hash berdasarkan kombinasi: `category`, `keyword`, `sort`, `page`
+- Saat `ProductObserver` terpicu, seluruh cache `storefront:products:*` akan di-flush
+```php
+public function getProducts(Request $request)
+{
+    $cacheKey = CacheService::key(CacheService::STOREFRONT_PRODUCTS, [
+        'category' => $request->category,
+        'keyword'  => $request->keyword,
+        'sort'     => $request->get('sort', 'newest'),
+        'page'     => $request->get('page', 1),
+    ]);
+
+    return Cache::remember($cacheKey, CacheService::TTL_STOREFRONT, function () use ($request) {
+        // ... query existing yang sama persis ...
+    });
+}
+```
+
+**`getArimaRecommendations()`** — Sudah menggunakan cache, hanya refactor ke `CacheService` constants untuk konsistensi.
+
+---
+
+### Fase 3: Caching Layer — Admin Panel Dashboard & Daftar
+
+#### [MODIFY] [AdminDashboardController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminDashboardController.php)
+
+**`getMetrics()`** — Cache TTL: 5 menit
+- Query agregasi berat (4x SUM/COUNT + 1x GROUP BY) di-cache per hari
+- Di-invalidasi otomatis oleh `OrderObserver` saat ada transaksi baru
+```php
+$cacheKey = CacheService::key(CacheService::DASHBOARD_METRICS, [
+    'date' => now()->format('Y-m-d'),
+]);
+return Cache::remember($cacheKey, CacheService::TTL_DASHBOARD, fn () => /* existing query */);
+```
+
+#### [MODIFY] [AdminProductController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminProductController.php)
+
+**`index()`** — Cache TTL: 5 menit
+- Cache per kombinasi: `keyword`, `low_stock`, `all`, `page`
+- Di-invalidasi oleh `ProductObserver`
+- Method `store()`, `update()`, `destroy()` → **tidak di-cache** (operasi write)
+
+#### [MODIFY] [AdminOrderController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminOrderController.php)
+
+**`getHistory()`** — Cache TTL: 5 menit
+- Cache per kombinasi: `channel`, `status`, `start_date`, `end_date`, `keyword`, `page`
+- Di-invalidasi oleh `OrderObserver`
+
+#### [MODIFY] [AdminCustomerController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminCustomerController.php)
+
+**`index()`** — Cache TTL: 5 menit | Di-invalidasi oleh `UserObserver`
+
+#### [MODIFY] [AdminStaffController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminStaffController.php)
+
+**`index()`** — Cache TTL: 5 menit | Di-invalidasi oleh `UserObserver`
+
+#### [MODIFY] [ArimaController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/ArimaController.php)
+
+**`getConfig()`** — Cache TTL: 1 jam
+- Di-invalidasi secara **manual** saat `saveConfig()` dipanggil: `Cache::forget(CacheService::ARIMA_CONFIG)`
+
+**`getLogs()`** — Cache TTL: 2 menit
+- Di-invalidasi secara **manual** setelah `runPrediction()` dan `runGlobalPrediction()` selesai
+
+---
+
+### Fase 4: Caching Layer — POS Terminal
+
+#### [MODIFY] [PosController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/PosController.php)
+
+**`searchProducts()`** — Cache TTL: 5 menit
+- Cache per kombinasi: `keyword`, `category`
+- Di-invalidasi oleh `ProductObserver`
+
+**`getOnlineQueue()`** — Cache TTL: 1 menit
+- Antrean bersifat near-real-time, TTL sangat pendek
+- Di-invalidasi oleh `OrderObserver` saat ada order web baru atau perubahan status
+
+**`processCheckout()`**, **`validateQueue()`**, **`validateHeldCart()`** — **Tidak di-cache** (operasi write/mutasi)
+
+---
+
+### Fase 5: Halaman Pengaturan (Settings) — Admin Panel
+
+Menambahkan halaman **"Pengaturan"** baru di sidebar Admin Panel dengan dua tab:
+1. **Profil Admin** — Kelola nama, email, dan password admin yang sedang login
+2. **Cache Management** — Monitoring dan manual flush cache
+
+#### [NEW] [AdminSettingsController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminSettingsController.php)
+Controller backend untuk halaman Settings:
+```php
+class AdminSettingsController extends Controller
+{
+    // === Tab: Profil Admin ===
+    
+    // GET /api/admin/settings/profile — Ambil data profil admin yang login
+    public function getProfile(Request $request) { ... }
+
+    // PUT /api/admin/settings/profile — Update nama, email, password admin
+    public function updateProfile(Request $request) { ... }
+
+    // === Tab: Cache Management ===
+
+    // GET /api/admin/settings/cache/stats — Statistik cache per kategori
+    // Returns: [{category, key_count, ttl_seconds, description}]
+    public function getCacheStats() { ... }
+
+    // POST /api/admin/settings/cache/flush — Flush cache per kategori atau semua
+    // Body: { "category": "products" | "orders" | "users" | "arima" | "all" }
+    public function flushCache(Request $request) { ... }
+}
+```
+
+#### [MODIFY] [api.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/routes/api.php)
+Menambahkan route baru di dalam group admin middleware:
+```php
+// Settings — Profil Admin
+Route::get('/settings/profile', [AdminSettingsController::class, 'getProfile']);
+Route::put('/settings/profile', [AdminSettingsController::class, 'updateProfile']);
+
+// Settings — Cache Management
+Route::get('/settings/cache/stats', [AdminSettingsController::class, 'getCacheStats']);
+Route::post('/settings/cache/flush', [AdminSettingsController::class, 'flushCache']);
+```
+
+#### [NEW] [Settings.vue](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/Pages/Admin/Settings/Index.vue)
+Halaman Settings dengan dua tab navigasi internal:
+
+**Tab 1: Profil Admin**
+- Form edit: Nama, Email, Password Baru, Konfirmasi Password
+- Tombol "Simpan Profil" dengan indikator loading
+- Validasi client-side (email format, password min 8 karakter, password match)
+
+**Tab 2: Cache Management**
+- Tabel statistik cache per kategori:
+  | Kategori | Jumlah Key | TTL | Deskripsi | Aksi |
+  |----------|-----------|-----|-----------|------|
+  | Produk Storefront | 12 | 10 mnt | Katalog publik | [Flush] |
+  | Dashboard Metrik | 2 | 5 mnt | Agregasi pendapatan | [Flush] |
+  | Daftar Produk (Admin) | 5 | 5 mnt | Inventaris admin | [Flush] |
+  | Riwayat Order | 8 | 5 mnt | Transaksi admin | [Flush] |
+  | Antrean POS | 1 | 1 mnt | Pesanan online | [Flush] |
+  | Konfigurasi ARIMA | 1 | 1 jam | Parameter tuning | [Flush] |
+  | Rekomendasi AI | 1 | 12 jam | Rekomendasi storefront | [Flush] |
+- Tombol **"Flush Semua Cache"** dengan dialog konfirmasi
+- Catatan informasi: "Cache di-invalidasi secara otomatis oleh sistem saat data berubah. Gunakan flush manual hanya jika diperlukan."
+
+#### [MODIFY] [AdminLayout.vue](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/Pages/Admin/Layouts/AdminLayout.vue)
+Menambahkan group sidebar baru di bawah "Manajemen Pengguna":
+```js
+{
+    title: 'Sistem',
+    items: [
+        {
+            name: 'Pengaturan',
+            path: '/admin/settings',
+            icon: { /* gear/cog icon SVG */ }
+        }
+    ]
+}
+```
+
+#### [MODIFY] [admin.js](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/admin.js)
+Mendaftarkan route Vue SPA baru:
+```js
+import SettingsIndex from './Pages/Admin/Settings/Index.vue';
+// ...
+{ path: 'settings', component: SettingsIndex }
+```
+
+---
+
+## Arsitektur Caching — Diagram Visual
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        SF["🛍️ Storefront<br/>(Publik)"]
+        AD["📊 Admin Dashboard"]
+        POS["💳 POS Kasir"]
+        SET["⚙️ Settings Page"]
+    end
+
+    subgraph "Laravel Cache Layer"
+        CR["Cache::remember()<br/>+ CacheService Keys"]
+        OBS["Model Observers<br/>(Product, Order, User)"]
+    end
+
+    subgraph "Cache Store (Database Driver)"
+        TBL["📦 Tabel 'cache'<br/>di PostgreSQL Supabase"]
+    end
+
+    subgraph "Data Source"
+        PG["🐘 PostgreSQL Supabase<br/>(tabel products, orders, users)"]
+        FLASK["🧠 Flask ARIMA Service"]
+    end
+
+    SF --> CR
+    AD --> CR
+    POS --> CR
+    SET -->|"flush manual"| TBL
+    CR --> TBL
+    TBL -.->|"cache miss"| PG
+    OBS -->|"auto flush"| TBL
+    PG -->|"write event"| OBS
+    FLASK -->|"prediction"| CR
+```
+
+## Diagram Cache Invalidation Flow
+
+```mermaid
+flowchart LR
+    subgraph "Write Triggers"
+        A1["POS Checkout"]
+        A2["Web Checkout"]
+        A3["Admin Edit Produk"]
+        A4["Admin Update Order"]
+        A5["ARIMA Prediction"]
+        A6["Save ARIMA Config"]
+        A7["Admin Flush Manual"]
+    end
+
+    subgraph "Observers"
+        O1["OrderObserver"]
+        O2["ProductObserver"]
+        O3["UserObserver"]
+    end
+
+    subgraph "Cache Flush Targets"
+        F1["🗑️ Dashboard Metrics"]
+        F2["🗑️ Orders History"]
+        F3["🗑️ POS Queue"]
+        F4["🗑️ Storefront Products"]
+        F5["🗑️ Admin Products"]
+        F6["🗑️ POS Products"]
+        F7["🗑️ ARIMA Logs"]
+        F8["🗑️ ARIMA Config"]
+        F9["🗑️ Customer List"]
+        F10["🗑️ Staff List"]
+    end
+
+    A1 --> O1
+    A2 --> O1
+    A4 --> O1
+    O1 --> F1 & F2 & F3 & F7
+
+    A3 --> O2
+    O2 --> F4 & F5 & F6
+
+    O3 --> F9 & F10
+
+    A5 -->|"manual"| F7
+    A6 -->|"manual"| F8
+    A7 -->|"selective/all"| F1 & F2 & F3 & F4 & F5 & F6 & F7 & F8 & F9 & F10
+```
+
+---
+
+## Ringkasan File yang Dimodifikasi
+
+| Fase | File | Aksi | Deskripsi |
+|------|------|------|-----------|
+| 1 | `app/Services/CacheService.php` | **NEW** | Centralized cache key, TTL, dan helper functions |
+| 1 | `app/Observers/ProductObserver.php` | **NEW** | Auto-invalidasi saat produk berubah |
+| 1 | `app/Observers/OrderObserver.php` | **NEW** | Auto-invalidasi saat order berubah |
+| 1 | `app/Observers/UserObserver.php` | **NEW** | Auto-invalidasi saat user berubah |
+| 1 | `app/Providers/AppServiceProvider.php` | MODIFY | Register observers di `boot()` |
+| 2 | `app/Http/Controllers/StorefrontController.php` | MODIFY | Cache `getProducts()` |
+| 3 | `app/Http/Controllers/Admin/AdminDashboardController.php` | MODIFY | Cache `getMetrics()` |
+| 3 | `app/Http/Controllers/Admin/AdminProductController.php` | MODIFY | Cache `index()` |
+| 3 | `app/Http/Controllers/Admin/AdminOrderController.php` | MODIFY | Cache `getHistory()` |
+| 3 | `app/Http/Controllers/Admin/AdminCustomerController.php` | MODIFY | Cache `index()` |
+| 3 | `app/Http/Controllers/Admin/AdminStaffController.php` | MODIFY | Cache `index()` |
+| 3 | `app/Http/Controllers/Admin/ArimaController.php` | MODIFY | Cache `getConfig()` + `getLogs()` |
+| 4 | `app/Http/Controllers/PosController.php` | MODIFY | Cache `searchProducts()` + `getOnlineQueue()` |
+| 5 | `app/Http/Controllers/Admin/AdminSettingsController.php` | **NEW** | API profil admin + cache management |
+| 5 | `resources/js/Pages/Admin/Settings/Index.vue` | **NEW** | UI halaman Pengaturan (2 tab) |
+| 5 | `resources/js/Pages/Admin/Layouts/AdminLayout.vue` | MODIFY | Sidebar menu "Pengaturan" baru |
+| 5 | `resources/js/admin.js` | MODIFY | Route SPA `/admin/settings` |
+| 5 | `routes/api.php` | MODIFY | Route API settings (profil + cache) |
+
+**Total: 8 file baru, 11 file dimodifikasi**
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# 1. Unit test CacheService (key generation, flush logic)
+php artisan test --filter=CacheServiceTest
+
+# 2. Test Observer-based invalidation
+php artisan test --filter=ProductObserverTest
+php artisan test --filter=OrderObserverTest
+
+# 3. Feature test: cached endpoint responses
+php artisan test --filter=StorefrontCacheTest
+php artisan test --filter=DashboardCacheTest
+
+# 4. Feature test: Settings API (profile + cache flush)
+php artisan test --filter=AdminSettingsTest
+```
+
+### Manual Verification
+1. **Storefront Cache**: Buka storefront → refresh 2x → periksa query log (request ke-2 seharusnya hit cache)
+2. **Cache Invalidation**: Edit produk di admin → refresh storefront → data harus ter-update (cache ter-flush oleh observer)
+3. **Dashboard Metrics**: Buka dashboard → proses checkout POS → refresh dashboard (data harus ter-update dalam ≤5 menit)
+4. **Settings → Profil**: Buka `/admin/settings` → edit nama → simpan → verifikasi nama berubah di sidebar
+5. **Settings → Cache**: Buka tab Cache Management → verifikasi statistik → klik flush per kategori → verifikasi data ter-refresh
+6. **Cross-Module**: Proses checkout web → periksa antrean POS (cache ter-flush otomatis) → cek metrik dashboard

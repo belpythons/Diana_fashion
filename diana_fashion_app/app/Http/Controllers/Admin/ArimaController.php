@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use App\Models\Setting;
+use App\Models\ArimaTuningConfig;
 
 class ArimaController extends Controller
 {
@@ -30,23 +31,26 @@ class ArimaController extends Controller
         // Load persistent settings from database
         $settings = Setting::all()->pluck('typed_value', 'key');
 
+        // Cari custom tuning config untuk produk ini
+        $customConfig = ArimaTuningConfig::where('product_id', $product->id)->first();
+
         $periods = $request->filled('forecast_periods') 
             ? intval($request->forecast_periods) 
-            : ($settings['arima_forecast_periods'] ?? 7);
+            : ($customConfig ? $customConfig->forecast_periods : ($settings['arima_forecast_periods'] ?? 7));
 
         $tuningParams = [
             'fill_missing_dates' => $request->has('fill_missing_dates') 
                 ? $request->boolean('fill_missing_dates') 
-                : ($settings['arima_fill_missing_dates'] ?? true),
+                : ($customConfig ? $customConfig->fill_missing_dates : ($settings['arima_fill_missing_dates'] ?? true)),
             'smooth_outliers' => $request->has('smooth_outliers') 
                 ? $request->boolean('smooth_outliers') 
-                : ($settings['arima_smooth_outliers'] ?? true),
-            'start_p' => $request->has('start_p') ? intval($request->start_p) : ($settings['arima_start_p'] ?? 0),
-            'start_q' => $request->has('start_q') ? intval($request->start_q) : ($settings['arima_start_q'] ?? 0),
-            'max_p' => $request->has('max_p') ? intval($request->max_p) : ($settings['arima_max_p'] ?? 5),
-            'max_q' => $request->has('max_q') ? intval($request->max_q) : ($settings['arima_max_q'] ?? 5),
-            'seasonal' => $request->has('seasonal') ? $request->boolean('seasonal') : ($settings['arima_seasonal'] ?? false),
-            'stepwise' => $request->has('stepwise') ? $request->boolean('stepwise') : ($settings['arima_stepwise'] ?? true),
+                : ($customConfig ? $customConfig->smooth_outliers : ($settings['arima_smooth_outliers'] ?? true)),
+            'start_p' => $request->has('start_p') ? intval($request->start_p) : ($customConfig ? $customConfig->start_p : ($settings['arima_start_p'] ?? 0)),
+            'start_q' => $request->has('start_q') ? intval($request->start_q) : ($customConfig ? $customConfig->start_q : ($settings['arima_start_q'] ?? 0)),
+            'max_p' => $request->has('max_p') ? intval($request->max_p) : ($customConfig ? $customConfig->max_p : ($settings['arima_max_p'] ?? 5)),
+            'max_q' => $request->has('max_q') ? intval($request->max_q) : ($customConfig ? $customConfig->max_q : ($settings['arima_max_q'] ?? 5)),
+            'seasonal' => $request->has('seasonal') ? $request->boolean('seasonal') : ($customConfig ? $customConfig->seasonal : ($settings['arima_seasonal'] ?? false)),
+            'stepwise' => $request->has('stepwise') ? $request->boolean('stepwise') : ($customConfig ? $customConfig->stepwise : ($settings['arima_stepwise'] ?? true)),
         ];
 
         // 1. Tarik Data Penjualan Historis
@@ -110,6 +114,17 @@ class ArimaController extends Controller
                 'execution_time_ms' => $result['execution_time_ms'] ?? 0
             ]);
 
+            // Update atau buat config tuning per produk dengan last_tuned_at = now()
+            if ($customConfig) {
+                $customConfig->update(['last_tuned_at' => now()]);
+            } else {
+                ArimaTuningConfig::create(array_merge($tuningParams, [
+                    'product_id' => $product->id,
+                    'forecast_periods' => $periods,
+                    'last_tuned_at' => now()
+                ]));
+            }
+
             // 5. Caching Hasil untuk Badge Storefront (Resolusi #9)
             // Simpan produk ini beserta hasil prediksinya ke cache rekomendasi storefront
             // Sebagai tanda bahwa produk ini sedang trending di-predict
@@ -154,23 +169,26 @@ class ArimaController extends Controller
         // Load persistent settings from database
         $settings = Setting::all()->pluck('typed_value', 'key');
 
+        // Cari custom global tuning config (product_id null)
+        $customConfig = ArimaTuningConfig::whereNull('product_id')->first();
+
         $periods = $request->filled('forecast_periods') 
             ? intval($request->forecast_periods) 
-            : ($settings['arima_forecast_periods'] ?? 7);
+            : ($customConfig ? $customConfig->forecast_periods : ($settings['arima_forecast_periods'] ?? 7));
 
         $tuningParams = [
             'fill_missing_dates' => $request->has('fill_missing_dates') 
                 ? $request->boolean('fill_missing_dates') 
-                : ($settings['arima_fill_missing_dates'] ?? true),
+                : ($customConfig ? $customConfig->fill_missing_dates : ($settings['arima_fill_missing_dates'] ?? true)),
             'smooth_outliers' => $request->has('smooth_outliers') 
                 ? $request->boolean('smooth_outliers') 
-                : ($settings['arima_smooth_outliers'] ?? true),
-            'start_p' => $request->has('start_p') ? intval($request->start_p) : ($settings['arima_start_p'] ?? 0),
-            'start_q' => $request->has('start_q') ? intval($request->start_q) : ($settings['arima_start_q'] ?? 0),
-            'max_p' => $request->has('max_p') ? intval($request->max_p) : ($settings['arima_max_p'] ?? 5),
-            'max_q' => $request->has('max_q') ? intval($request->max_q) : ($settings['arima_max_q'] ?? 5),
-            'seasonal' => $request->has('seasonal') ? $request->boolean('seasonal') : ($settings['arima_seasonal'] ?? false),
-            'stepwise' => $request->has('stepwise') ? $request->boolean('stepwise') : ($settings['arima_stepwise'] ?? true),
+                : ($customConfig ? $customConfig->smooth_outliers : ($settings['arima_smooth_outliers'] ?? true)),
+            'start_p' => $request->has('start_p') ? intval($request->start_p) : ($customConfig ? $customConfig->start_p : ($settings['arima_start_p'] ?? 0)),
+            'start_q' => $request->has('start_q') ? intval($request->start_q) : ($customConfig ? $customConfig->start_q : ($settings['arima_start_q'] ?? 0)),
+            'max_p' => $request->has('max_p') ? intval($request->max_p) : ($customConfig ? $customConfig->max_p : ($settings['arima_max_p'] ?? 5)),
+            'max_q' => $request->has('max_q') ? intval($request->max_q) : ($customConfig ? $customConfig->max_q : ($settings['arima_max_q'] ?? 5)),
+            'seasonal' => $request->has('seasonal') ? $request->boolean('seasonal') : ($customConfig ? $customConfig->seasonal : ($settings['arima_seasonal'] ?? false)),
+            'stepwise' => $request->has('stepwise') ? $request->boolean('stepwise') : ($customConfig ? $customConfig->stepwise : ($settings['arima_stepwise'] ?? true)),
         ];
 
         // 1. Tarik Data Penjualan Global (Pendapatan Toko Harian)
@@ -229,6 +247,17 @@ class ArimaController extends Controller
                 'execution_time_ms' => $result['execution_time_ms'] ?? 0
             ]);
 
+            // Update atau buat config tuning global dengan last_tuned_at = now()
+            if ($customConfig) {
+                $customConfig->update(['last_tuned_at' => now()]);
+            } else {
+                ArimaTuningConfig::create(array_merge($tuningParams, [
+                    'product_id' => null,
+                    'forecast_periods' => $periods,
+                    'last_tuned_at' => now()
+                ]));
+            }
+
             return response()->json([
                 'message' => 'Prediksi ARIMA Tren Penjualan Global berhasil dijalankan.',
                 'log' => $log->load('user:id,name'),
@@ -283,8 +312,80 @@ class ArimaController extends Controller
             ]);
         }
 
+    }
+
+    public function getTuningConfig($productId = null)
+    {
+        // Load persistent settings untuk default fallback
+        $settings = Setting::all()->pluck('typed_value', 'key');
+
+        $config = null;
+        if ($productId === 'global' || is_null($productId)) {
+            $config = ArimaTuningConfig::whereNull('product_id')->first();
+        } else {
+            $config = ArimaTuningConfig::where('product_id', $productId)->first();
+        }
+
+        if ($config) {
+            return response()->json($config);
+        }
+
+        // Return default values jika record belum dibuat di DB
         return response()->json([
-            'message' => 'Konfigurasi parameter ARIMA berhasil diperbarui.'
+            'product_id' => ($productId === 'global' || is_null($productId)) ? null : intval($productId),
+            'forecast_periods' => intval($settings['arima_forecast_periods'] ?? 7),
+            'fill_missing_dates' => boolval($settings['arima_fill_missing_dates'] ?? true),
+            'smooth_outliers' => boolval($settings['arima_smooth_outliers'] ?? true),
+            'start_p' => intval($settings['arima_start_p'] ?? 0),
+            'start_q' => intval($settings['arima_start_q'] ?? 0),
+            'max_p' => intval($settings['arima_max_p'] ?? 5),
+            'max_q' => intval($settings['arima_max_q'] ?? 5),
+            'seasonal' => boolval($settings['arima_seasonal'] ?? false),
+            'stepwise' => boolval($settings['arima_stepwise'] ?? true),
+            'last_tuned_at' => null
+        ]);
+    }
+
+    public function saveTuningConfig(Request $request)
+    {
+        $validated = $request->validate([
+            'product_id' => ['nullable', 'string'], // Bisa berupa ID string produk atau 'global'
+            'forecast_periods' => ['required', 'integer', 'min:1', 'max:30'],
+            'fill_missing_dates' => ['required', 'boolean'],
+            'smooth_outliers' => ['required', 'boolean'],
+            'start_p' => ['required', 'integer', 'min:0', 'max:5'],
+            'start_q' => ['required', 'integer', 'min:0', 'max:5'],
+            'max_p' => ['required', 'integer', 'min:1', 'max:10'],
+            'max_q' => ['required', 'integer', 'min:1', 'max:10'],
+            'seasonal' => ['required', 'boolean'],
+            'stepwise' => ['required', 'boolean'],
+        ]);
+
+        $productId = $validated['product_id'];
+        if ($productId === 'global' || is_null($productId)) {
+            $productId = null;
+        } else {
+            $productId = intval($productId);
+        }
+
+        $config = ArimaTuningConfig::updateOrCreate(
+            ['product_id' => $productId],
+            [
+                'forecast_periods' => $validated['forecast_periods'],
+                'fill_missing_dates' => $validated['fill_missing_dates'],
+                'smooth_outliers' => $validated['smooth_outliers'],
+                'start_p' => $validated['start_p'],
+                'start_q' => $validated['start_q'],
+                'max_p' => $validated['max_p'],
+                'max_q' => $validated['max_q'],
+                'seasonal' => $validated['seasonal'],
+                'stepwise' => $validated['stepwise'],
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Konfigurasi tuning kustom ARIMA berhasil disimpan.',
+            'config' => $config
         ]);
     }
 }

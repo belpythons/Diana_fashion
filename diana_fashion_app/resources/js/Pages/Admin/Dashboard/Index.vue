@@ -1,7 +1,7 @@
 <template>
     <div class="space-y-8">
         <!-- Metrik Omnichannel Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div :class="showTrendChart ? 'lg:grid-cols-5' : 'lg:grid-cols-4'" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <!-- Card 1: Pendapatan Hari Ini -->
             <div class="bg-white border border-gray-200 rounded-sm p-6 flex flex-col justify-between">
                 <div>
@@ -45,6 +45,27 @@
                 </div>
                 <div class="mt-4 pt-3 border-t border-gray-50 text-[10px] text-gray-400">
                     <span>Rata-rata Nominal: Rp {{ formatNumber(metrics.orders_month > 0 ? Math.round(metrics.revenue_month / metrics.orders_month) : 0) }}</span>
+                </div>
+            </div>
+
+            <!-- Card 5: Proyeksi AI (7 Hari) -->
+            <div v-if="showTrendChart" class="bg-white border border-[#FF1F8F] rounded-sm p-6 flex flex-col justify-between shadow-xs animate-fadeIn">
+                <div>
+                    <div class="flex justify-between items-start">
+                        <span class="text-[10px] font-bold text-[#FF1F8F] uppercase tracking-wider block">Proyeksi AI (7 Hari)</span>
+                        <span class="text-[8px] bg-pink-100 text-[#FF1F8F] font-bold px-1.5 py-0.5 rounded-xs font-mono uppercase">ARIMA</span>
+                    </div>
+                    <h3 class="text-xl font-extrabold text-gray-900 mt-2 font-mono">Rp {{ formatNumber(Math.round(totalForecastRevenue)) }}</h3>
+                </div>
+                <div class="mt-4 pt-3 border-t border-gray-50 flex flex-col space-y-1 text-[9px] text-gray-400 font-medium">
+                    <div class="flex justify-between">
+                        <span>Akurasi Model:</span>
+                        <span class="font-bold text-green-600 font-mono">{{ 100 - trendMape }}%</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Order Model:</span>
+                        <span class="font-bold text-gray-700 font-mono uppercase">{{ trendArimaOrder }}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -104,8 +125,8 @@
                 <div v-if="showTrendChart" class="bg-white border border-gray-200 rounded-sm p-6 space-y-6">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-3">
                         <div>
-                            <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wider">Proyeksi Permintaan Produk Terlaris (ARIMA AI)</h4>
-                            <p class="text-[10px] text-gray-400 font-semibold mt-1">Tren penjualan produk: <span class="text-[#FF1F8F] font-bold">{{ trendProductName }}</span></p>
+                            <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wider">Proyeksi Tren Pendapatan Toko Global (ARIMA AI)</h4>
+                            <p class="text-[10px] text-gray-400 font-semibold mt-1">Status: <span class="text-[#FF1F8F] font-bold">Tren Ter-tune</span> | Terakhir Tuning: <span class="text-gray-900 font-bold font-mono">{{ lastTuningTime }}</span></p>
                         </div>
                         <div class="flex space-x-4 text-[10px] font-mono">
                             <span class="flex items-center text-gray-500 font-semibold">
@@ -132,8 +153,35 @@
                             <path :d="prediksiPath" fill="none" stroke="#FF1F8F" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round" />
 
                             <!-- Dots -->
-                            <circle v-for="point in chartPoints" :key="point.id" :cx="point.x" :cy="point.y" :fill="point.isPredict ? '#FF1F8F' : '#9CA3AF'" r="3" />
+                            <!-- Dots (Interaktif dengan Hover) -->
+                            <circle 
+                                v-for="(point, idx) in chartPoints" 
+                                :key="point.id" 
+                                :cx="point.x" 
+                                :cy="point.y" 
+                                :fill="point.isPredict ? '#FF1F8F' : '#9CA3AF'" 
+                                :r="activeIndex === idx ? 5.5 : 3" 
+                                @mouseenter="activeIndex = idx"
+                                @mouseleave="activeIndex = -1"
+                                class="cursor-pointer transition-all duration-100"
+                            />
                         </svg>
+
+                        <!-- Tooltip HTML Absolut Reaktif Premium -->
+                        <div 
+                            v-if="activeIndex !== -1 && chartPoints[activeIndex]" 
+                            :style="{ 
+                                left: `${(chartPoints[activeIndex].x / 600) * 100}%`, 
+                                top: `${(chartPoints[activeIndex].y / 150) * 100 - 18}%` 
+                            }" 
+                            class="absolute -translate-x-1/2 -translate-y-full bg-gray-900/95 backdrop-blur-xs text-white text-[9px] px-2.5 py-1.5 rounded-sm shadow-md font-mono z-10 pointer-events-none whitespace-nowrap border border-gray-800 transition-all duration-75"
+                        >
+                            <div class="flex items-center space-x-1">
+                                <span :class="chartPoints[activeIndex].isPredict ? 'bg-[#FF1F8F]' : 'bg-gray-400'" class="h-1.5 w-1.5 rounded-full inline-block"></span>
+                                <span class="font-bold text-gray-300">{{ formatDateLabel(chartPoints[activeIndex].date) }}</span>
+                            </div>
+                            <p class="text-[#FF1F8F] font-extrabold mt-1 text-[10px]">Rp {{ formatNumber(Math.round(chartPoints[activeIndex].sales)) }}</p>
+                        </div>
                     </div>
 
                     <!-- Metrics -->
@@ -145,6 +193,22 @@
                         <div>
                             <span class="text-[9px] text-gray-400 uppercase font-bold tracking-wider block">Persentase Akurasi (MAPE)</span>
                             <span class="font-bold text-green-600 mt-0.5 block">{{ trendMape }}% (Akurasi Tinggi)</span>
+                        </div>
+                    </div>
+
+                    <!-- Detail Estimasi Pendapatan Harian (7 Hari Ke Depan) -->
+                    <div class="border-t border-gray-100 pt-5">
+                        <span class="text-[10px] font-bold text-gray-900 uppercase tracking-wider block mb-3 flex items-center">
+                            <span class="h-1.5 w-1.5 bg-[#FF1F8F] rounded-full mr-2 animate-pulse"></span>
+                            Rincian Estimasi Pendapatan Harian (7 Hari Ke Depan)
+                        </span>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                            <div v-for="(p, idx) in trendChartData.prediksi" :key="idx" 
+                                 class="bg-white border border-gray-100 rounded-xs p-3 text-center transition-all duration-300 hover:border-[#FF1F8F] hover:shadow-xs group">
+                                <span class="text-[8px] font-bold text-gray-400 uppercase tracking-wider block group-hover:text-gray-500 transition-colors">{{ formatDateLabelDay(p.date) }}</span>
+                                <span class="text-[9px] font-medium text-gray-500 block mt-0.5">{{ formatDateLabelDate(p.date) }}</span>
+                                <span class="text-xs font-extrabold text-[#FF1F8F] font-mono block mt-2 group-hover:scale-105 transition-transform duration-200">Rp {{ formatNumber(Math.round(p.sales)) }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -215,12 +279,18 @@ const latestLogs = ref([]);
 
 // New ARIMA Trend States
 const showTrendChart = ref(false);
-const trendProductName = ref('');
-const trendArimaOrder = ref('');
+const trendProductName = ref('Penjualan Toko Global');
+const trendArimaOrder = ref('N/A');
 const trendMape = ref(0);
+const lastTuningTime = ref('Belum pernah');
+const activeIndex = ref(-1);
 const trendChartData = ref({
     historis: [],
     prediksi: []
+});
+
+const totalForecastRevenue = computed(() => {
+    return trendChartData.value.prediksi.reduce((sum, p) => sum + Number(p.sales), 0);
 });
 
 const totalRevenue = computed(() => comparison.value.pos.total + comparison.value.web.total);
@@ -251,36 +321,40 @@ const checkArimaService = async () => {
         latestLogs.value = logsResponse.data;
         arimaLogsCount.value = logsResponse.data.length;
         arimaStatus.value = 'ok';
+
+        // Cari log tuning global terakhir untuk menampilkan timestamp
+        const globalLog = logsResponse.data.find(l => l.product_name === 'GLOBAL_SALES');
+        if (globalLog) {
+            lastTuningTime.value = formatDate(globalLog.created_at);
+        }
     } catch (error) {
         arimaStatus.value = 'offline';
         console.error('Flask ARIMA offline atau logs gagal diakses:', error);
     }
 };
 
-// Fetch ARIMA Trend for Top Product (dynamic)
+// Fetch ARIMA Trend for Global Store Sales (dynamic from table orders)
 const fetchArimaTrend = async () => {
     try {
-        const prodRes = await axios.get('/api/admin/products?low_stock=false&all=true');
-        if (prodRes.data.data.length > 0) {
-            const topProd = prodRes.data.data[0]; // Ambil produk terlaris pertama
-            trendProductName.value = topProd.name;
+        const arimaRes = await axios.post('/api/admin/predict-arima-global', {
+            forecast_periods: 7,
+            fill_missing_dates: true,
+            smooth_outliers: true
+        });
 
-            const arimaRes = await axios.post('/api/admin/predict-arima', {
-                product_id: topProd.id,
-                forecast_periods: 7,
-                fill_missing_dates: true,
-                smooth_outliers: true
-            });
+        trendArimaOrder.value = arimaRes.data.arima_order;
+        trendMape.value = arimaRes.data.mape_score;
+        
+        const hData = arimaRes.data.forecast_result.filter(r => !r.is_forecast);
+        const pData = arimaRes.data.forecast_result.filter(r => r.is_forecast);
 
-            trendArimaOrder.value = arimaRes.data.arima_order;
-            trendMape.value = arimaRes.data.mape_score;
-            
-            const hData = arimaRes.data.forecast_result.filter(r => !r.is_forecast);
-            const pData = arimaRes.data.forecast_result.filter(r => r.is_forecast);
+        // Ambil 14 hari terakhir historis untuk kemudahan visualisasi
+        trendChartData.value.historis = hData.slice(-14);
+        trendChartData.value.prediksi = pData;
+        showTrendChart.value = true;
 
-            trendChartData.value.historis = hData.slice(-14);
-            trendChartData.value.prediksi = pData;
-            showTrendChart.value = true;
+        if (arimaRes.data.log) {
+            lastTuningTime.value = formatDate(arimaRes.data.log.created_at);
         }
     } catch (e) {
         console.error('Gagal memuat tren ARIMA pada dashboard:', e);
@@ -307,7 +381,14 @@ const chartPoints = computed(() => {
     hist.forEach((p, index) => {
         const x = index * stepWidth;
         const y = 130 - ((p.sales - minVal) / range) * 110;
-        points.push({ id: `h-${index}`, x, y, isPredict: false });
+        points.push({ 
+            id: `h-${index}`, 
+            x, 
+            y, 
+            isPredict: false, 
+            sales: Number(p.sales), 
+            date: p.date 
+        });
     });
 
     // Hitung Prediksi
@@ -315,11 +396,43 @@ const chartPoints = computed(() => {
     pred.forEach((p, index) => {
         const x = (histLen + index) * stepWidth;
         const y = 130 - ((p.sales - minVal) / range) * 110;
-        points.push({ id: `p-${index}`, x, y, isPredict: true });
+        points.push({ 
+            id: `p-${index}`, 
+            x, 
+            y, 
+            isPredict: true, 
+            sales: Number(p.sales), 
+            date: p.date 
+        });
     });
 
     return points;
 });
+
+const formatDateLabel = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('id-ID', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+    });
+};
+
+const formatDateLabelDay = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('id-ID', { weekday: 'long' }).toUpperCase();
+};
+
+const formatDateLabelDate = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short'
+    });
+};
 
 const historisPath = computed(() => {
     const histPoints = chartPoints.value.filter(p => !p.isPredict);
