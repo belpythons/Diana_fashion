@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->statefulApi();
+
+        // Resolusi: Mencegah error "Route [login] not defined" pada API.
+        // Mengembalikan JSON 401 Unauthenticated alih-alih redirect ke route 'login'.
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->expectsJson() ? null : '/');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

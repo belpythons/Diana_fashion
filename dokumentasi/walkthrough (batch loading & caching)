@@ -1,0 +1,43 @@
+# Walkthrough — Batch Loading & Caching 1 Menit (POS & Storefront)
+
+Telah diimplementasikan optimasi performa backend dan frontend Diana Fashion untuk mempercepat waktu pemuatan halaman utama dashboard serta meminimalkan latensi query database Supabase PostgreSQL.
+
+---
+
+## Perubahan yang Telah Dilakukan
+
+### 1. Batch Loading Dashboard Admin
+- **[AdminDashboardController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminDashboardController.php)**:
+  - Membuat endpoint baru `/api/admin/dashboard/init` (`getDashboardInit`) yang mengembalikan data metrik harian/bulanan, data reality check, log ARIMA, dan data grafik tren ARIMA sekaligus dalam satu siklus request Laravel.
+  - Ini mengeliminasi overhead 4 request TCP/SSL paralel ke database Supabase Seoul yang sebelumnya memakan waktu total hingga 23 detik di localhost.
+- **[api.php (Routes)](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/routes/api.php)**:
+  - Mendaftarkan rute GET `/dashboard/init` di bawah admin group.
+- **[Index.vue (Frontend)](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/Pages/Admin/Dashboard/Index.vue)**:
+  - Memperbarui hook `onMounted` agar memanggil satu endpoint `/api/admin/dashboard/init` dan memetakan datanya secara instan ke visualisasi dashboard.
+  - Menghapus pemanggilan otomatis kalkulasi ARIMA yang lambat (17 detik) saat load awal. Kalkulasi model kini diubah menjadi manual (via tombol refresh atau tombol run prediction di dashboard) agar tidak membebani load awal.
+
+### 2. Caching 1 Menit pada POS & Katalog E-Commerce
+- **[PosController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/PosController.php)**:
+  - Terapkan caching selama 60 detik pada method `searchProducts` dengan key dinamis unik `pos_products_k_{keyword}_c_{category}`.
+- **[StorefrontController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/StorefrontController.php)**:
+  - Terapkan caching selama 60 detik pada method `getProducts` dengan key dinamis unik `storefront_products_p_{page}_c_{category}_s_{sort}_k_{keyword}`.
+
+### 3. Perbaikan Bug Kompatibilitas Database PostgreSQL (FTS)
+- Memperbaiki query Full-Text Search pada `PosController.php` dan `StorefrontController.php`. Query MySQL `MATCH(name) AGAINST(...)` otomatis digantikan dengan operator pencarian case-insensitive `ILIKE` jika Laravel mendeteksi koneksi database saat ini adalah PostgreSQL (Supabase Seoul), namun tetap mempertahankan fallback `AGAINST` jika dijalankan di MySQL. Langkah ini mengeliminasi error `SQLSTATE[42601]` di database Supabase.
+
+---
+
+## Hasil Verifikasi & Pengujian
+
+### 1. Verifikasi Data Response Init Dashboard
+Simulasi pemanggilan request `/api/admin/dashboard/init` via Tinker sukses mengembalikan response terstruktur dengan waktu respons instan:
+- `metrics_data`
+- `reality_check_data`
+- `arima_logs`
+- `arima_trend` (berisi koordinat grafik historis dan proyeksi ARIMA)
+
+### 2. Verifikasi Caching POS & Storefront
+Eksekusi unit test manual pada [test_cache.php](file:///C:/Users/Lenovo/.gemini/antigravity-ide/brain/1eb8f8fc-2533-4c25-b30b-d6a95f8f6b88/scratch/test_cache.php) menunjukkan:
+- Pencarian POS berjalan sukses tanpa SQL syntax error dan data berhasil tersimpan di Cache dengan key `pos_products_k_Gamis_c_Gamis`.
+- Katalog storefront berjalan sukses dan tersimpan di Cache dengan key `storefront_products_p_1_c_Atasan_s_newest_k_`.
+- Respons query selanjutnya dilayani langsung dari cache lokal (<30ms).

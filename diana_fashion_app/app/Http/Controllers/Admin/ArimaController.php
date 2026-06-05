@@ -125,6 +125,20 @@ class ArimaController extends Controller
                 ]));
             }
 
+            // Simpan forecast per-produk ke cache untuk Reality Check dashboard
+            if (isset($result['forecast_result'])) {
+                $forecastOnly = collect($result['forecast_result'])
+                    ->filter(fn($r) => !empty($r['is_forecast']))
+                    ->values()
+                    ->toArray();
+
+                Cache::put(
+                    "arima_product_forecast_{$product->id}", 
+                    $forecastOnly, 
+                    now()->addDays(8)  // TTL 8 hari (lebih dari 7 hari forecast)
+                );
+            }
+
             // 5. Caching Hasil untuk Badge Storefront (Resolusi #9)
             // Simpan produk ini beserta hasil prediksinya ke cache rekomendasi storefront
             // Sebagai tanda bahwa produk ini sedang trending di-predict
@@ -191,14 +205,10 @@ class ArimaController extends Controller
             'stepwise' => $request->has('stepwise') ? $request->boolean('stepwise') : ($customConfig ? $customConfig->stepwise : ($settings['arima_stepwise'] ?? true)),
         ];
 
-        // 1. Tarik Data Penjualan Global (Pendapatan Toko Harian)
-        $salesData = Order::select(
-                DB::raw('DATE(orders.created_at) as date'),
-                DB::raw('SUM(orders.total_price) as total_sales')
-            )
-            ->where('orders.status', 'completed')
-            ->groupBy('date')
-            ->orderBy('date', 'asc')
+        // 1. Tarik Data Penjualan Global (Pendapatan Toko Harian) dari Materialized View
+        $salesData = DB::table('mv_daily_sales_revenue')
+            ->select('sales_date as date', 'total_revenue as total_sales')
+            ->orderBy('sales_date', 'asc')
             ->get();
 
         // 2. Validasi jumlah data historis (minimal 7 data penjualan unik per hari)
@@ -256,6 +266,20 @@ class ArimaController extends Controller
                     'forecast_periods' => $periods,
                     'last_tuned_at' => now()
                 ]));
+            }
+
+            // Simpan forecast global ke cache untuk Reality Check
+            if (isset($result['forecast_result'])) {
+                $forecastOnly = collect($result['forecast_result'])
+                    ->filter(fn($r) => !empty($r['is_forecast']))
+                    ->values()
+                    ->toArray();
+
+                Cache::put(
+                    "arima_global_forecast", 
+                    $forecastOnly, 
+                    now()->addDays(8)  // TTL 8 hari
+                );
             }
 
             return response()->json([

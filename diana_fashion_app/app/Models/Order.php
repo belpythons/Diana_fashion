@@ -14,6 +14,7 @@ class Order extends Model
     protected $fillable = [
         'increment_id',
         'user_id',
+        'customer_name',
         'channel',
         'status',
         'total_price',
@@ -28,5 +29,16 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class, 'order_id');
+    }
+
+    protected static function booted()
+    {
+        static::saved(function ($order) {
+            \Illuminate\Support\Facades\Cache::forget('admin_dashboard_metrics');
+        });
+
+        static::deleted(function ($order) {
+            \Illuminate\Support\Facades\Cache::forget('admin_dashboard_metrics');
+        });
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -17,30 +18,41 @@ class PosController extends Controller
             'category' => ['nullable', 'string']
         ]);
 
-        $query = Product::with('category');
+        $keyword = $request->get('keyword', '');
+        $category = $request->get('category', '');
 
-        // Filter berdasarkan kategori jika disediakan
-        if ($request->filled('category')) {
-            $query->whereHas('category', function ($q) use ($request) {
-                $q->where('name', $request->category);
-            });
-        }
+        $cacheKey = "pos_products_k_{$keyword}_c_{$category}";
 
-        // Pencarian berdasarkan keyword SKU (prefix match) atau nama (FULLTEXT) (Resolusi #6)
-        if ($request->filled('keyword')) {
-            $keyword = $request->keyword;
-            $query->where(function ($q) use ($keyword) {
-                $q->where('sku', 'LIKE', $keyword . '%')
-                  ->orWhereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$keyword . '*']);
-            });
-        }
+        $products = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function () use ($keyword, $category) {
+            $query = Product::with('category');
 
-        // Jika tidak ada kriteria pencarian, default tampilkan 15 produk terbaru
-        if (!$request->filled('keyword') && !$request->filled('category')) {
-            $products = $query->orderBy('created_at', 'desc')->take(15)->get();
-        } else {
-            $products = $query->get();
-        }
+            // Filter berdasarkan kategori jika disediakan
+            if (!empty($category)) {
+                $query->whereHas('category', function ($q) use ($category) {
+                    $q->where('name', $category);
+                });
+            }
+
+            // Pencarian berdasarkan keyword SKU (prefix match) atau nama (kompatibel cross-database)
+            if (!empty($keyword)) {
+                $query->where(function ($q) use ($keyword) {
+                    $q->where('sku', 'LIKE', $keyword . '%');
+                    
+                    if (\Illuminate\Support\Facades\DB::getDriverName() === 'pgsql') {
+                        $q->orWhere('name', 'ILIKE', '%' . $keyword . '%');
+                    } else {
+                        $q->orWhereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$keyword . '*']);
+                    }
+                });
+            }
+
+            // Jika tidak ada kriteria pencarian, default tampilkan 15 produk terbaru
+            if (empty($keyword) && empty($category)) {
+                return $query->orderBy('created_at', 'desc')->take(15)->get();
+            }
+
+            return $query->get();
+        });
 
         return response()->json($products);
     }
@@ -49,6 +61,7 @@ class PosController extends Controller
     {
         $request->validate([
             'customer_id' => ['nullable', 'exists:users,id'],
+            'customer_name' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'exists:products,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'], // Resolusi #3: qty
@@ -103,6 +116,7 @@ class PosController extends Controller
                     $order = Order::create([
                         'increment_id' => $incrementId,
                         'user_id' => $request->customer_id, // Nullable untuk support Guest Checkout
+                        'customer_name' => $request->customer_name, // String nama pembeli POS
                         'channel' => 'pos',
                         'status' => 'completed',
                         'total_price' => $totalPrice,
@@ -130,7 +144,7 @@ class PosController extends Controller
                     ], 201);
                 });
             } catch (\Exception $e) {
-                if ($e->getCode() === 422) {
+                if ($e->getCode() == 422) {
                     return response()->json([
                         'message' => $e->getMessage()
                     ], 422);
@@ -143,6 +157,33 @@ class PosController extends Controller
                 throw $e;
             }
         }
+    }
+
+    public function getRegisteredCustomers(Request $request)
+    {
+        $query = User::where('role', 'pelanggan');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $driver = DB::getDriverName();
+            
+            $query->where(function ($q) use ($search, $driver) {
+                if ($driver === 'pgsql') {
+                    $q->where('name', 'ILIKE', '%' . $search . '%')
+                      ->orWhere('email', 'ILIKE', '%' . $search . '%');
+                } else {
+                    $q->where('name', 'LIKE', '%' . $search . '%')
+                      ->orWhere('email', 'LIKE', '%' . $search . '%');
+                }
+            });
+        }
+
+        $customers = $query->select('id', 'name', 'email')
+            ->orderBy('name', 'asc')
+            ->take(10)
+            ->get();
+            
+        return response()->json($customers);
     }
 
     public function getOnlineQueue()

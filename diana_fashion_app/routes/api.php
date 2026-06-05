@@ -43,6 +43,7 @@ Route::prefix('customer')->middleware(['auth:sanctum'])->group(function () {
 Route::prefix('pos')->middleware(['auth:sanctum', 'role:kasir'])->group(function () {
     Route::get('/products/search', [PosController::class, 'searchProducts']);
     Route::post('/checkout', [PosController::class, 'processCheckout']);
+    Route::get('/customers', [PosController::class, 'getRegisteredCustomers']);
     Route::get('/queue', [PosController::class, 'getOnlineQueue']);
     Route::post('/queue/{id}/validate', [PosController::class, 'validateQueue']);
     Route::post('/cart/validate-prices', [PosController::class, 'validateHeldCart']);
@@ -51,6 +52,8 @@ Route::prefix('pos')->middleware(['auth:sanctum', 'role:kasir'])->group(function
 // 5. Rute Admin Panel (Proteksi: Admin terautentikasi)
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::get('/dashboard/metrics', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getMetrics']);
+    Route::get('/dashboard/reality-check', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getRealityCheck']);
+    Route::get('/dashboard/init', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getDashboardInit']);
     Route::post('/predict-arima', [App\Http\Controllers\Admin\ArimaController::class, 'runPrediction']);
     Route::post('/predict-arima-global', [App\Http\Controllers\Admin\ArimaController::class, 'runGlobalPrediction']);
     Route::get('/arima-logs', [App\Http\Controllers\Admin\ArimaController::class, 'getLogs']);

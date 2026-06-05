@@ -212,6 +212,158 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Card 3: Reality Check — Aktual vs Prediksi ARIMA -->
+                <div class="bg-white border border-[#E5E7EB] rounded-sm p-6 space-y-6">
+                    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#E5E7EB] pb-4">
+                        <div class="flex items-start">
+                            <!-- ARIMA Icon SVG -->
+                            <div class="p-2 bg-pink-50 rounded-sm mr-3">
+                                <svg class="w-5 h-5 text-[#FF1F8F]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">  
+                                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>  
+                                    <polyline points="16 7 22 7 22 13"></polyline>  
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-[#111827] uppercase tracking-wider">Reality Check — Aktual vs Prediksi ARIMA (Pendapatan Toko Global)</h4>
+                                <p class="text-[10px] text-[#6B7280] font-semibold mt-1">
+                                    Perbandingan performa pendapatan harian toko terhadap model proyeksi global ARIMA 7 hari terakhir.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Loader & Status Messages -->
+                    <div v-if="rcLoading" class="py-12 flex flex-col items-center justify-center space-y-3">
+                        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-[#FF1F8F]"></div>
+                        <span class="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider font-mono">Memuat Data Reality Check...</span>
+                    </div>
+
+                    <div v-else-if="rcMessage" class="py-12 text-center bg-red-50/20 border border-[#F87171]/20 rounded-sm p-6">
+                        <p class="text-xs text-[#F87171] font-mono">{{ rcMessage }}</p>
+                    </div>
+
+                    <!-- Reality Check Data Cards Grid -->
+                    <div v-else class="space-y-6 animate-fadeIn">
+                        <!-- Accuracy Alert / Summary Header -->
+                        <div class="flex justify-between items-center bg-[#F9FAFB] border border-[#E5E7EB] rounded-sm p-4 text-xs font-mono">
+                            <span class="font-bold text-[#6B7280]">Akurasi Target Pendapatan:</span>
+                            <div class="flex items-center space-x-2">
+                                <span class="font-extrabold text-[#111827]">{{ rcAccuracySummary.good }} dari {{ rcAccuracySummary.total }} hari</span>
+                                <span class="bg-[#34D399]/10 text-[#34D399] font-mono text-[10px] font-bold px-2 py-0.5 rounded-sm flex items-center">
+                                    <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                    SESUAI
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- 7 Days Grid -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                            <div 
+                                v-for="(day, idx) in rcData" 
+                                :key="idx" 
+                                :class="[
+                                    'bg-white border rounded-xs p-3 text-center transition-all duration-300 flex flex-col justify-between h-48',
+                                    day.status === 'green' ? 'border-t-4 border-t-[#34D399] border-[#E5E7EB] hover:border-[#FF1F8F]' : '',
+                                    day.status === 'yellow' ? 'border-t-4 border-t-[#FBBF24] border-[#E5E7EB] hover:border-[#FF1F8F]' : '',
+                                    day.status === 'red' ? 'border-t-4 border-t-[#F87171] border-[#E5E7EB] hover:border-[#FF1F8F]' : '',
+                                    day.status === 'upcoming' ? 'border-t-4 border-t-[#E5E7EB] border-[#E5E7EB] bg-[#F9FAFB] opacity-60' : ''
+                                ]"
+                            >
+                                <!-- Date Label -->
+                                <div>
+                                    <span class="text-[8px] font-bold text-[#6B7280] uppercase tracking-wider block">{{ formatDateLabelDay(day.date) }}</span>
+                                    <span class="text-[9px] font-medium text-[#111827] block mt-0.5">{{ formatDateLabelDate(day.date) }}</span>
+                                </div>
+
+                                <!-- Center Status & Progress Bar -->
+                                <div class="my-2 flex flex-col items-center">
+                                    <template v-if="day.status === 'upcoming'">
+                                        <!-- Clock outline SVG -->
+                                        <svg class="w-4 h-4 text-gray-400 mb-1 animate-pulse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <polyline points="12 6 12 12 16 14"></polyline>
+                                        </svg>
+                                        <span class="text-[8px] font-mono font-bold text-gray-400 uppercase tracking-wider">Menunggu</span>
+                                    </template>
+                                    <template v-else>
+                                        <!-- Mini Progress Bar / Visual Ratio -->
+                                        <div class="w-full bg-[#E5E7EB] h-1.5 rounded-full overflow-hidden mt-1 max-w-[50px] mx-auto">
+                                            <div 
+                                                :class="[
+                                                    'h-full transition-all duration-500',
+                                                    day.status === 'green' ? 'bg-[#34D399]' : '',
+                                                    day.status === 'yellow' ? 'bg-[#FBBF24]' : '',
+                                                    day.status === 'red' ? 'bg-[#F87171]' : ''
+                                                ]"
+                                                :style="{ width: Math.min((day.actual / (day.predicted || 1)) * 100, 100) + '%' }"
+                                            ></div>
+                                        </div>
+                                        
+                                        <!-- Dot status -->
+                                        <div class="mt-1.5 flex items-center justify-center space-x-1">
+                                            <span 
+                                                :class="[
+                                                    'h-1.5 w-1.5 rounded-full inline-block',
+                                                    day.status === 'green' ? 'bg-[#34D399]' : '',
+                                                    day.status === 'yellow' ? 'bg-[#FBBF24]' : '',
+                                                    day.status === 'red' ? 'bg-[#F87171]' : ''
+                                                ]"
+                                            ></span>
+                                            <span 
+                                                :class="[
+                                                    'text-[8px] font-mono font-bold uppercase tracking-wider',
+                                                    day.status === 'green' ? 'text-[#34D399]' : '',
+                                                    day.status === 'yellow' ? 'text-[#FBBF24]' : '',
+                                                    day.status === 'red' ? 'text-[#F87171]' : ''
+                                                ]"
+                                            >
+                                                {{ day.status === 'green' ? 'Akurat' : day.status === 'yellow' ? 'Rendah' : 'Kritis' }}
+                                            </span>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- Prediction vs Actual Details -->
+                                <div class="text-[8px] font-mono pt-2 border-t border-[#E5E7EB] text-left space-y-0.5 mt-auto">
+                                    <div class="flex justify-between">
+                                        <span class="text-[#6B7280]">PRD:</span>
+                                        <span class="font-bold text-[#111827]">Rp{{ formatNumber(day.predicted) }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-[#6B7280]">AKT:</span>
+                                        <span class="font-bold text-[#111827]">{{ day.status === 'upcoming' ? '—' : 'Rp' + formatNumber(day.actual) }}</span>
+                                    </div>
+
+                                    <!-- Deviation Badge -->
+                                    <div v-if="day.status !== 'upcoming'" class="flex justify-between items-center pt-1 mt-0.5 border-t border-dashed border-gray-100">
+                                        <span class="text-[#6B7280]">DEV:</span>
+                                        <span 
+                                            :class="[
+                                                'font-bold px-1 py-0.5 rounded-xs text-[8px]',
+                                                day.status === 'green' ? 'bg-[#34D399]/10 text-[#34D399]' : '',
+                                                day.status === 'yellow' ? 'bg-[#FBBF24]/10 text-[#FBBF24]' : '',
+                                                day.status === 'red' ? 'bg-[#F87171]/10 text-[#F87171]' : ''
+                                            ]"
+                                        >
+                                            {{ day.deviation_percent <= 0 ? '+' + Math.abs(day.deviation_percent) : '-' + day.deviation_percent }}%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Legend Details -->
+                        <div class="flex flex-wrap gap-6 text-[9px] font-mono text-[#6B7280] bg-[#F9FAFB] p-4 rounded-sm border border-[#E5E7EB]">
+                            <span class="font-bold text-[#111827] uppercase tracking-wider mr-2">Indikator Target:</span>
+                            <span class="flex items-center"><span class="h-2 w-2 rounded-full mr-2" style="background-color: #34D399;"></span> Hijau: Aktual ≥ 90% Prediksi (Deviasi ≤ 10%)</span>
+                            <span class="flex items-center"><span class="h-2 w-2 rounded-full mr-2" style="background-color: #FBBF24;"></span> Kuning: Aktual 70% - 90% Prediksi (Deviasi 10% - 30%)</span>
+                            <span class="flex items-center"><span class="h-2 w-2 rounded-full mr-2" style="background-color: #F87171;"></span> Merah: Aktual &lt; 70% Prediksi (Deviasi &gt; 30%)</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Kanan: Status Server & Ringkasan Logs (col-span-4 - 38% Golden Ratio) -->
@@ -258,7 +410,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 
 const metrics = ref({
@@ -289,6 +441,34 @@ const trendChartData = ref({
     prediksi: []
 });
 
+// Reality Check States
+const rcData = ref([]);              // Array hasil reality check
+const rcLoading = ref(false);        // Loading state
+const rcMessage = ref('');           // Pesan jika belum ada prediksi
+
+// Computed: Summary akurasi
+const rcAccuracySummary = computed(() => {
+    const past = rcData.value.filter(d => d.status !== 'upcoming');
+    const good = past.filter(d => d.status === 'green');
+    return { good: good.length, total: past.length };
+});
+
+// Fetch Reality Check
+const fetchRealityCheck = async () => {
+    rcLoading.value = true;
+    rcMessage.value = '';
+    try {
+        const res = await axios.get('/api/admin/dashboard/reality-check');
+        rcData.value = res.data.data;
+        rcMessage.value = res.data.data.length === 0 ? res.data.message : '';
+    } catch (e) {
+        console.error('Reality check gagal:', e);
+        rcMessage.value = 'Gagal memuat data reality check.';
+    } finally {
+        rcLoading.value = false;
+    }
+};
+
 const totalForecastRevenue = computed(() => {
     return trendChartData.value.prediksi.reduce((sum, p) => sum + Number(p.sales), 0);
 });
@@ -305,36 +485,68 @@ const webPercent = computed(() => {
     return Math.round((comparison.value.web.total / totalRevenue.value) * 100);
 });
 
-const fetchMetrics = async () => {
+const fetchDashboardData = async () => {
+    rcLoading.value = true;
+    rcMessage.value = '';
     try {
-        const response = await axios.get('/api/admin/dashboard/metrics');
-        metrics.value = response.data.metrics;
-        comparison.value = response.data.comparison;
+        const response = await axios.get('/api/admin/dashboard/init');
+        const data = response.data;
+
+        // 1. Map Metrics
+        if (data.metrics_data) {
+            metrics.value = data.metrics_data.metrics;
+            comparison.value = data.metrics_data.comparison;
+        }
+
+        // 2. Map Reality Check
+        if (data.reality_check_data) {
+            rcData.value = data.reality_check_data;
+            rcMessage.value = data.reality_check_data.length === 0 ? 'Belum ada data reality check.' : '';
+        }
+
+        // 3. Map ARIMA Logs & Status
+        if (data.arima_logs) {
+            latestLogs.value = data.arima_logs;
+            arimaLogsCount.value = data.arima_logs.length;
+            arimaStatus.value = 'ok';
+        }
+
+        // 4. Map ARIMA Trend Chart
+        if (data.arima_trend) {
+            const trend = data.arima_trend;
+            trendArimaOrder.value = trend.arima_order;
+            trendMape.value = trend.mape_score;
+            lastTuningTime.value = trend.last_tuning_time ? formatDate(trend.last_tuning_time) : 'Belum pernah';
+            
+            trendChartData.value.historis = trend.historis;
+            trendChartData.value.prediksi = trend.prediksi;
+            showTrendChart.value = trend.historis.length > 0;
+        }
+
     } catch (error) {
-        console.error('Gagal mengambil metrik dashboard:', error);
+        arimaStatus.value = 'offline';
+        console.error('Gagal mengambil inisialisasi data dashboard:', error);
+        rcMessage.value = 'Gagal memuat data dashboard.';
+    } finally {
+        rcLoading.value = false;
     }
 };
 
 const checkArimaService = async () => {
+    // Tetap sediakan sebagai check-up independen jika dibutuhkan
     try {
         const logsResponse = await axios.get('/api/admin/arima-logs');
         latestLogs.value = logsResponse.data;
         arimaLogsCount.value = logsResponse.data.length;
         arimaStatus.value = 'ok';
-
-        // Cari log tuning global terakhir untuk menampilkan timestamp
-        const globalLog = logsResponse.data.find(l => l.product_name === 'GLOBAL_SALES');
-        if (globalLog) {
-            lastTuningTime.value = formatDate(globalLog.created_at);
-        }
     } catch (error) {
         arimaStatus.value = 'offline';
-        console.error('Flask ARIMA offline atau logs gagal diakses:', error);
     }
 };
 
-// Fetch ARIMA Trend for Global Store Sales (dynamic from table orders)
+// Manual trigger untuk melatih ulang / refresh model ARIMA (Butuh kalkulasi berat)
 const fetchArimaTrend = async () => {
+    rcLoading.value = true;
     try {
         const arimaRes = await axios.post('/api/admin/predict-arima-global', {
             forecast_periods: 7,
@@ -348,7 +560,6 @@ const fetchArimaTrend = async () => {
         const hData = arimaRes.data.forecast_result.filter(r => !r.is_forecast);
         const pData = arimaRes.data.forecast_result.filter(r => r.is_forecast);
 
-        // Ambil 14 hari terakhir historis untuk kemudahan visualisasi
         trendChartData.value.historis = hData.slice(-14);
         trendChartData.value.prediksi = pData;
         showTrendChart.value = true;
@@ -356,8 +567,13 @@ const fetchArimaTrend = async () => {
         if (arimaRes.data.log) {
             lastTuningTime.value = formatDate(arimaRes.data.log.created_at);
         }
+
+        // Muat ulang data reality check setelah forecast diperbarui
+        fetchRealityCheck();
     } catch (e) {
-        console.error('Gagal memuat tren ARIMA pada dashboard:', e);
+        console.error('Gagal melatih ulang model ARIMA:', e);
+    } finally {
+        rcLoading.value = false;
     }
 };
 
@@ -464,8 +680,5 @@ const formatDate = (dateStr) => {
 };
 
 onMounted(() => {
-    fetchMetrics();
-    checkArimaService();
-    fetchArimaTrend();
-});
-</script>
+    fetchDashboardData();
+});</script>

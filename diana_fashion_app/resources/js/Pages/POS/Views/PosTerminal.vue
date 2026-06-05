@@ -130,6 +130,34 @@
                         </div>
                     </div>
 
+                    <!-- Identitas Pembeli (Autocomplete) -->
+                    <div class="space-y-3 border-b border-gray-100 pb-4 mb-4 relative">
+                        <label class="block text-[10px] font-bold text-gray-700 uppercase tracking-wider">Identitas Pembeli</label>
+                        <div class="relative">
+                            <input v-model="customerQuery" @input="onCustomerSearchInput" type="text" placeholder="Ketik nama pembeli..." class="w-full text-xs border border-gray-300 rounded-sm px-3 py-2.5 focus:outline-none focus:border-[#FF1F8F] transition-colors" />
+                            <span v-if="searchingCustomers" class="absolute right-3 top-3.5 animate-spin rounded-full h-3 w-3 border-b-2 border-[#FF1F8F]"></span>
+                        </div>
+
+                        <!-- Autocomplete Floating Dropdown -->
+                        <div v-if="showCustomerSuggestions && customerSuggestions.length > 0" class="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-sm shadow-lg max-h-40 overflow-y-auto z-50">
+                            <div v-for="cust in customerSuggestions" :key="cust.id" @click="selectCustomer(cust)" class="px-3 py-2 text-xs hover:bg-gray-50 transition-colors cursor-pointer flex justify-between items-center border-b border-gray-50 last:border-b-0">
+                                <div>
+                                    <span class="font-semibold text-gray-900 block">{{ cust.name }}</span>
+                                    <span class="text-[9px] text-gray-400 block">{{ cust.email }}</span>
+                                </div>
+                                <span class="text-[8px] bg-pink-50 text-[#FF1F8F] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider">Hubungkan</span>
+                            </div>
+                        </div>
+
+                        <!-- Member Connected Alert -->
+                        <div v-if="selectedCustomer" class="mt-2 text-[10px] text-green-700 font-semibold flex items-center justify-between bg-green-50 px-3 py-2 rounded-sm border-l-2 border-green-500">
+                            <span class="flex items-center">
+                                <span class="mr-1.5">✓</span> Member Terhubung: {{ selectedCustomer.name }}
+                            </span>
+                            <button type="button" @click="clearSelectedCustomer" class="text-red-500 hover:text-red-600 font-bold underline transition-colors cursor-pointer">Batal</button>
+                        </div>
+                    </div>
+
                     <!-- Pilihan Pembayaran & Checkout -->
                     <div>
                         <label class="block text-[10px] font-bold text-gray-700 uppercase tracking-wider mb-2">Metode Pembayaran</label>
@@ -224,6 +252,13 @@ const searchResults = ref([]);
 const cart = ref([]);
 const paymentMethod = ref('Cash');
 const checkoutLoading = ref(false);
+
+// State Identitas Pembeli (Autocomplete)
+const customerQuery = ref('');
+const selectedCustomer = ref(null); // Objek member yang dipilih
+const customerSuggestions = ref([]);
+const showCustomerSuggestions = ref(false);
+const searchingCustomers = ref(false);
 
 // State Queue
 const queue = ref([]);
@@ -359,7 +394,9 @@ const processCheckout = async () => {
     try {
         const payload = {
             items: cart.value.map(i => ({ id: i.id, qty: i.qty })),
-            payment_method: paymentMethod.value
+            payment_method: paymentMethod.value,
+            customer_id: selectedCustomer.value ? selectedCustomer.value.id : null,
+            customer_name: !selectedCustomer.value && customerQuery.value.trim() !== '' ? customerQuery.value.trim() : null
         };
 
         await axios.post('/api/pos/checkout', payload);
@@ -384,6 +421,54 @@ const resetPosState = () => {
     searchKeyword.value = '';
     searchResults.value = [];
     paymentMethod.value = 'Cash';
+    customerQuery.value = '';
+    selectedCustomer.value = null;
+    customerSuggestions.value = [];
+    showCustomerSuggestions.value = false;
+};
+
+let customerDebounceTimer = null;
+const onCustomerSearchInput = () => {
+    if (selectedCustomer.value) {
+        selectedCustomer.value = null;
+    }
+
+    clearTimeout(customerDebounceTimer);
+    
+    if (customerQuery.value.trim() === '') {
+        customerSuggestions.value = [];
+        showCustomerSuggestions.value = false;
+        return;
+    }
+
+    searchingCustomers.value = true;
+    customerDebounceTimer = setTimeout(async () => {
+        try {
+            const response = await axios.get('/api/pos/customers', {
+                params: { search: customerQuery.value }
+            });
+            customerSuggestions.value = response.data;
+            showCustomerSuggestions.value = true;
+        } catch (error) {
+            console.error('Gagal memuat pelanggan terdaftar:', error);
+        } finally {
+            searchingCustomers.value = false;
+        }
+    }, 300);
+};
+
+const selectCustomer = (cust) => {
+    selectedCustomer.value = cust;
+    customerQuery.value = cust.name;
+    showCustomerSuggestions.value = false;
+    customerSuggestions.value = [];
+};
+
+const clearSelectedCustomer = () => {
+    selectedCustomer.value = null;
+    customerQuery.value = '';
+    showCustomerSuggestions.value = false;
+    customerSuggestions.value = [];
 };
 
 // Queue Operasional

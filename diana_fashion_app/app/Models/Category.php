@@ -16,4 +16,15 @@ class Category extends Model
     {
         return $this->hasMany(Product::class);
     }
+
+    protected static function booted()
+    {
+        static::saved(function ($category) {
+            \Illuminate\Support\Facades\Cache::forget('product_categories_list');
+        });
+
+        static::deleted(function ($category) {
+            \Illuminate\Support\Facades\Cache::forget('product_categories_list');
+        });
+    }
 }

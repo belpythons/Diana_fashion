@@ -13,32 +13,45 @@ class StorefrontController extends Controller
 {
     public function getProducts(Request $request)
     {
-        $query = Product::with('category');
-
-        // 1. Filter Kategori
-        if ($request->filled('category')) {
-            $query->whereHas('category', function ($q) use ($request) {
-                $q->where('name', $request->category);
-            });
-        }
-
-        // 2. Pencarian Nama Produk via FULLTEXT MATCH AGAINST (Resolusi #6)
-        if ($request->filled('keyword')) {
-            $keyword = $request->keyword;
-            $query->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$keyword . '*']);
-        }
-
-        // 3. Sorting (newest, price_asc, price_desc)
+        $category = $request->get('category', '');
+        $keyword = $request->get('keyword', '');
         $sort = $request->get('sort', 'newest');
-        if ($sort === 'price_asc') {
-            $query->orderBy('price', 'asc');
-        } elseif ($sort === 'price_desc') {
-            $query->orderBy('price', 'desc');
-        } else {
-            $query->orderBy('created_at', 'desc'); // newest
-        }
+        $page = $request->get('page', 1);
 
-        return response()->json($query->paginate(12));
+        $cacheKey = "storefront_products_p_{$page}_c_{$category}_s_{$sort}_k_{$keyword}";
+
+        $productsData = Cache::remember($cacheKey, 60, function () use ($category, $keyword, $sort) {
+            $query = Product::with('category');
+
+            // 1. Filter Kategori
+            if (!empty($category)) {
+                $query->whereHas('category', function ($q) use ($category) {
+                    $q->where('name', $category);
+                });
+            }
+
+            // 2. Pencarian Nama Produk (kompatibel cross-database)
+            if (!empty($keyword)) {
+                if (\Illuminate\Support\Facades\DB::getDriverName() === 'pgsql') {
+                    $query->where('name', 'ILIKE', '%' . $keyword . '%');
+                } else {
+                    $query->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$keyword . '*']);
+                }
+            }
+
+            // 3. Sorting (newest, price_asc, price_desc)
+            if ($sort === 'price_asc') {
+                $query->orderBy('price', 'asc');
+            } elseif ($sort === 'price_desc') {
+                $query->orderBy('price', 'desc');
+            } else {
+                $query->orderBy('created_at', 'desc'); // newest
+            }
+
+            return $query->paginate(12);
+        });
+
+        return response()->json($productsData);
     }
 
     public function getArimaRecommendations()
@@ -191,7 +204,7 @@ class StorefrontController extends Controller
                     ], 201);
                 });
             } catch (\Exception $e) {
-                if ($e->getCode() === 422) {
+                if ($e->getCode() == 422) {
                     return response()->json([
                         'message' => $e->getMessage()
                     ], 422);
