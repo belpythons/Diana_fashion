@@ -21,7 +21,7 @@ class StorefrontController extends Controller
         $cacheKey = "storefront_products_p_{$page}_c_{$category}_s_{$sort}_k_{$keyword}";
 
         $productsData = Cache::remember($cacheKey, 60, function () use ($category, $keyword, $sort) {
-            $query = Product::with('category');
+            $query = Product::with('category')->where('stock', '>', 0);
 
             // 1. Filter Kategori
             if (!empty($category)) {
@@ -32,10 +32,11 @@ class StorefrontController extends Controller
 
             // 2. Pencarian Nama Produk (kompatibel cross-database)
             if (!empty($keyword)) {
-                if (\Illuminate\Support\Facades\DB::getDriverName() === 'pgsql') {
+                $driver = \Illuminate\Support\Facades\DB::getDriverName();
+                if ($driver === 'pgsql') {
                     $query->where('name', 'ILIKE', '%' . $keyword . '%');
                 } else {
-                    $query->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$keyword . '*']);
+                    $query->where('name', 'LIKE', '%' . $keyword . '%');
                 }
             }
 
@@ -48,7 +49,7 @@ class StorefrontController extends Controller
                 $query->orderBy('created_at', 'desc'); // newest
             }
 
-            return $query->paginate(12);
+            return $query->paginate(12)->toArray();
         });
 
         return response()->json($productsData);
@@ -60,6 +61,7 @@ class StorefrontController extends Controller
         $recommendations = Cache::remember('arima_storefront_recommendations', now()->addHours(12), function () {
             // Fallback jika cache kosong: ambil 4 produk terlaris atau stok terbanyak
             return Product::with('category')
+                ->where('stock', '>', 0)
                 ->orderBy('stock', 'desc')
                 ->take(4)
                 ->get();
@@ -82,6 +84,7 @@ class StorefrontController extends Controller
         if (!$isSafe) {
             // Muat ulang 4 produk langsung dari database untuk memastikan keaslian data
             $recommendations = Product::with('category')
+                ->where('stock', '>', 0)
                 ->orderBy('stock', 'desc')
                 ->take(4)
                 ->get();
@@ -196,6 +199,9 @@ class StorefrontController extends Controller
                     // 5. Generate WhatsApp Redirect URL
                     $waPhone = config('services.whatsapp.number', '628123456789');
                     $waUrl = 'https://api.whatsapp.com/send?phone=' . $waPhone . '&text=' . urlencode($waMessageText);
+
+                    // Flush cache storefront & POS agar perubahan stok langsung ter-apply
+                    Cache::flush();
 
                     return response()->json([
                         'message' => 'Pesanan berhasil dibuat. Silakan selesaikan pembayaran via WhatsApp.',

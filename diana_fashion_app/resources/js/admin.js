@@ -7,6 +7,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import AdminLayout from './Pages/Admin/Layouts/AdminLayout.vue';
 import DashboardIndex from './Pages/Admin/Dashboard/Index.vue';
 import ProductsIndex from './Pages/Admin/Products/Index.vue';
+import LowStockIndex from './Pages/Admin/Products/LowStock.vue';
 import OrdersIndex from './Pages/Admin/Orders/Index.vue';
 import CustomersIndex from './Pages/Admin/Users/Customers.vue';
 import StaffIndex from './Pages/Admin/Users/Staff.vue';
@@ -20,6 +21,7 @@ const routes = [
         component: AdminLayout,
         children: [
             { path: '', component: DashboardIndex },
+            { path: 'products/low-stock', component: LowStockIndex },
             { path: 'products', component: ProductsIndex },
             { path: 'orders', component: OrdersIndex },
             { path: 'customers', component: CustomersIndex },

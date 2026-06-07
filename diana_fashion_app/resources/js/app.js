@@ -81,8 +81,16 @@ const app = createApp({
         };
 
         const addToCart = (product) => {
+            if (product.stock <= 0) {
+                showNotification(`Gagal: Stok "${product.name}" habis.`);
+                return;
+            }
             const existing = cart.value.find(item => item.id === product.id);
             if (existing) {
+                if (existing.qty >= product.stock) {
+                    showNotification(`Stok terbatas: Hanya tersedia ${product.stock} pcs.`);
+                    return;
+                }
                 existing.qty += 1;
             } else {
                 cart.value.push({ ...product, qty: 1 });
@@ -94,6 +102,10 @@ const app = createApp({
         const updateQty = (id, qty) => {
             const item = cart.value.find(i => i.id === id);
             if (item) {
+                if (qty > item.stock) {
+                    showNotification(`Stok terbatas: Hanya tersedia ${item.stock} pcs.`);
+                    return;
+                }
                 item.qty = qty;
                 saveCart();
             }

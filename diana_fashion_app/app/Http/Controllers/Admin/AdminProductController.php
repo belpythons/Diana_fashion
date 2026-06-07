@@ -17,13 +17,28 @@ class AdminProductController extends Controller
 
         if ($request->filled('keyword')) {
             $keyword = $request->keyword;
-            // SKU prefix B-Tree, Name FULLTEXT MATCH AGAINST (Resolusi #6)
-            $query->where('sku', 'LIKE', $keyword . '%')
-                  ->orWhereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$keyword . '*']);
+            $driver = \Illuminate\Support\Facades\DB::getDriverName();
+            $query->where(function ($q) use ($keyword, $driver) {
+                $q->where('sku', 'LIKE', $keyword . '%');
+                if ($driver === 'pgsql') {
+                    $q->orWhere('name', 'ILIKE', '%' . $keyword . '%');
+                } else {
+                    $q->orWhereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$keyword . '*']);
+                }
+            });
         }
 
-        if ($request->get('low_stock') === 'true') {
+        if ($request->filled('low_stock_threshold')) {
+            $threshold = (int) $request->low_stock_threshold;
+            $query->where('stock', '<', $threshold);
+        } elseif ($request->get('low_stock') === 'true') {
             $query->where('stock', '<', 5);
+        }
+
+        if ($request->filled('category')) {
+            $query->whereHas('category', function ($q) use ($request) {
+                $q->where('name', $request->category);
+            });
         }
 
         if ($request->get('all') === 'true') {
@@ -62,6 +77,9 @@ class AdminProductController extends Controller
         unset($validated['image']);
 
         $product = Product::create($validated);
+
+        // Invalidasi cache storefront & POS setelah penambahan produk baru
+        \Illuminate\Support\Facades\Cache::flush();
 
         return response()->json([
             'message' => 'Produk berhasil ditambahkan.',
@@ -104,6 +122,9 @@ class AdminProductController extends Controller
 
         $product->update($validated);
 
+        // Invalidasi cache storefront & POS setelah perubahan data/stok produk
+        \Illuminate\Support\Facades\Cache::flush();
+
         return response()->json([
             'message' => 'Produk berhasil diperbarui.',
             'product' => $product->load('category')
@@ -122,6 +143,9 @@ class AdminProductController extends Controller
         }
 
         $product->delete();
+
+        // Invalidasi cache storefront & POS setelah produk dihapus
+        \Illuminate\Support\Facades\Cache::flush();
 
         return response()->json([
             'message' => 'Produk berhasil dihapus.'

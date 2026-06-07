@@ -6,7 +6,7 @@
             <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-[#FF1F8F]"></div>
         </div>
 
-        <div v-else-if="orders.length === 0" class="text-center py-12">
+        <div v-else-if="!orders || orders.length === 0" class="text-center py-12">
             <p class="text-sm text-gray-500 font-sans">Anda belum pernah melakukan pemesanan.</p>
         </div>
 
@@ -52,9 +52,10 @@ const fetchOrders = async () => {
     loading.value = true;
     try {
         const response = await axios.get('/api/customer/orders');
-        orders.value = response.data.data;
+        orders.value = response.data?.data ?? [];
     } catch (error) {
         console.error('Gagal mengambil riwayat belanja:', error);
+        orders.value = [];
         emit('show-notification', 'Gagal memuat riwayat belanja.');
     } finally {
         loading.value = false;

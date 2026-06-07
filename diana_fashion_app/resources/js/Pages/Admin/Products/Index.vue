@@ -7,9 +7,18 @@
                 <p class="text-xs text-gray-500 mt-1">Mengelola persediaan stok dan harga retail produk Diana Fashion.</p>
             </div>
             
-            <button @click="openCreateModal" class="bg-[#FF1F8F] hover:bg-[#D91678] text-white text-xs font-bold px-4 py-2.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer text-center">
-                + Tambah Produk Baru
-            </button>
+            <div class="flex items-center space-x-3 w-full sm:w-auto">
+                <router-link to="/admin/products/low-stock" class="border border-red-300 hover:border-red-500 text-red-600 hover:bg-red-50 text-xs font-bold px-4 py-2.5 rounded-sm uppercase tracking-wider transition-colors flex items-center space-x-2">
+                    <span>Stok Rendah (&lt; 2)</span>
+                    <span v-if="lowStockCriticalCount > 0" class="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none">
+                        {{ lowStockCriticalCount }}
+                    </span>
+                </router-link>
+
+                <button @click="openCreateModal" class="bg-[#FF1F8F] hover:bg-[#D91678] text-white text-xs font-bold px-4 py-2.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer text-center whitespace-nowrap">
+                    + Tambah Produk Baru
+                </button>
+            </div>
         </div>
 
         <!-- Filter Area -->
@@ -174,6 +183,7 @@ import axios from 'axios';
 const products = ref([]);
 const categories = ref([]);
 const lowStockCount = ref(0);
+const lowStockCriticalCount = ref(0);
 
 const filters = reactive({
     keyword: '',
@@ -224,6 +234,11 @@ const checkLowStock = async () => {
             params: { low_stock: 'true' }
         });
         lowStockCount.value = response.data.total;
+
+        const responseCritical = await axios.get('/api/admin/products', {
+            params: { low_stock_threshold: 2 }
+        });
+        lowStockCriticalCount.value = responseCritical.data.total;
     } catch (e) {
         console.error(e);
     }

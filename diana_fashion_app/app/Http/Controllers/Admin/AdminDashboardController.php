@@ -58,11 +58,14 @@ class AdminDashboardController extends Controller
             'prediksi' => $prediksi
         ];
 
+        $lowStockCriticalCount = \App\Models\Product::where('stock', '<', 2)->count();
+
         return response()->json([
             'metrics_data' => $metrics,
             'reality_check_data' => $realityCheck,
             'arima_logs' => $arimaLogs,
-            'arima_trend' => $arimaTrend
+            'arima_trend' => $arimaTrend,
+            'low_stock_critical_count' => $lowStockCriticalCount
         ]);
     }
 

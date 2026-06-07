@@ -71,8 +71,17 @@
 
         <!-- 2. Katalog Konten Grid (Golden Ratio Layout) -->
         <div id="products-section" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Mobile Filter Toggle Button (tampil hanya di mobile) -->
+            <div class="lg:hidden col-span-1">
+                <button @click="showMobileFilter = !showMobileFilter" 
+                        class="w-full bg-white border border-gray-200 hover:border-[#FF1F8F] text-gray-800 text-xs font-bold py-3 px-4 rounded-sm transition-all cursor-pointer flex justify-between items-center shadow-xs">
+                    <span class="uppercase tracking-wider">Cari & Filter</span>
+                    <span class="text-[10px] text-gray-400 font-mono">{{ showMobileFilter ? 'Tutup' : 'Buka' }}</span>
+                </button>
+            </div>
+
             <!-- Sidebar Filter Premium (Col-3) -->
-            <div class="lg:col-span-3 bg-white border border-gray-200 rounded-sm p-6 h-fit sticky top-20">
+            <div :class="{ 'hidden': !showMobileFilter, 'block': showMobileFilter }" class="lg:block lg:col-span-3 bg-white border border-gray-200 rounded-sm p-6 h-fit lg:sticky lg:top-20">
                 <h3 class="text-xs font-bold text-gray-900 uppercase tracking-widest border-b border-gray-100 pb-3 mb-5">Cari & Filter</h3>
                 
                 <!-- Pencarian Kata Kunci -->
@@ -108,14 +117,14 @@
             <!-- Grid Produk & Pagination (Col-9) -->
             <div class="lg:col-span-9">
                 <div class="flex justify-between items-center mb-6">
-                    <span class="text-xs text-gray-400 font-mono">Menampilkan {{ products.length }} item terdaftar</span>
+                    <span class="text-xs text-gray-400 font-mono">Menampilkan {{ (products || []).length }} item terdaftar</span>
                 </div>
 
                 <div v-if="loading" class="flex justify-center items-center py-24">
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF1F8F]"></div>
                 </div>
 
-                <div v-else-if="products.length === 0" class="text-center py-24 bg-white border border-gray-200 rounded-sm">
+                <div v-else-if="!products || products.length === 0" class="text-center py-24 bg-white border border-gray-200 rounded-sm">
                     <p class="text-sm text-gray-400">Tidak ada produk yang cocok dengan pencarian Anda.</p>
                 </div>
 
@@ -135,6 +144,11 @@
                                 <div v-if="isArimaTrending(product)" class="absolute top-2.5 left-2.5 bg-[#FF1F8F] text-white text-[9px] font-bold px-2.5 py-1 rounded-sm uppercase tracking-widest select-none z-10 flex items-center h-[24px]">
                                     [ TRENDING ]
                                 </div>
+
+                                <!-- Sisa 1 Badge -->
+                                <div v-if="product.stock === 1" class="absolute top-2.5 right-2.5 bg-red-600 text-white text-[9px] font-bold px-2 py-1 rounded-sm uppercase tracking-wider select-none z-10 flex items-center h-[24px]">
+                                    Sisa 1
+                                </div>
                             </div>
                             <span class="text-[10px] font-bold font-mono uppercase text-gray-400 tracking-wider">
                                 {{ product.category?.name }}
@@ -152,8 +166,12 @@
                                 <span class="text-xs sm:text-sm font-bold text-gray-900 font-mono">Rp {{ formatNumber(product.price) }}</span>
                             </div>
                             
-                            <button @click.stop="handleAddToCart(product, $event)" class="bg-white border border-gray-200 hover:border-[#FF1F8F] hover:bg-[#FF1F8F] hover:text-white text-gray-700 text-[11px] font-bold px-3 py-2 rounded-sm transition-all cursor-pointer">
-                                + Keranjang
+                            <button 
+                                @click.stop="handleAddToCart(product, $event)" 
+                                :disabled="product.stock <= 0" 
+                                class="bg-white border border-gray-200 hover:border-[#FF1F8F] hover:bg-[#FF1F8F] hover:text-white text-gray-700 text-[11px] font-bold px-3 py-2 rounded-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-700 disabled:hover:border-gray-200"
+                            >
+                                {{ product.stock > 0 ? '+ Keranjang' : 'Habis' }}
                             </button>
                         </div>
                     </div>
@@ -216,13 +234,19 @@
 
                         <div class="pt-2">
                             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Ketersediaan Stok</span>
-                            <span class="text-xs font-semibold text-gray-700 font-mono">{{ selectedProduct.stock }} pcs tersedia</span>
+                            <span v-if="selectedProduct.stock === 1" class="text-xs font-bold text-red-600 font-mono bg-red-50 px-2 py-1 rounded-sm border border-red-200 inline-block">Sisa 1 Pcs Saja!</span>
+                            <span v-else-if="selectedProduct.stock <= 0" class="text-xs font-bold text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded-sm border border-gray-200 inline-block">Stok Habis</span>
+                            <span v-else class="text-xs font-semibold text-gray-700 font-mono">{{ selectedProduct.stock }} pcs tersedia</span>
                         </div>
                     </div>
 
                     <div class="pt-6">
-                        <button @click="handleAddToCart(selectedProduct, $event); closeModal()" class="w-full bg-[#FF1F8F] hover:bg-[#D91678] text-white text-xs font-bold py-3.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer border-0 text-center">
-                            + Tambah ke Keranjang
+                        <button 
+                            @click="handleAddToCart(selectedProduct, $event); closeModal()" 
+                            :disabled="selectedProduct.stock <= 0" 
+                            class="w-full bg-[#FF1F8F] hover:bg-[#D91678] text-white text-xs font-bold py-3.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer border-0 text-center disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#FF1F8F]"
+                        >
+                            {{ selectedProduct.stock > 0 ? '+ Tambah ke Keranjang' : 'Habis' }}
                         </button>
                     </div>
                 </div>
@@ -249,6 +273,7 @@ const pagination = ref({});
 
 const selectedProduct = ref(null);
 const showModal = ref(false);
+const showMobileFilter = ref(false);
 
 const filters = reactive({
     category: '',
@@ -267,10 +292,12 @@ const fetchProducts = async () => {
     loading.value = true;
     try {
         const response = await axios.get('/api/storefront/products', { params: filters });
-        products.value = response.data.data;
-        pagination.value = response.data;
+        products.value = response.data?.data ?? [];
+        pagination.value = response.data ?? {};
     } catch (error) {
         console.error('Gagal mengambil produk:', error);
+        products.value = [];
+        pagination.value = {};
     } finally {
         loading.value = false;
     }
@@ -280,9 +307,10 @@ const fetchProducts = async () => {
 const fetchArimaRecs = async () => {
     try {
         const response = await axios.get('/api/storefront/recommendations');
-        arimaRecs.value = response.data;
+        arimaRecs.value = response.data ?? [];
     } catch (error) {
         console.error('Gagal mengambil rekomendasi ARIMA:', error);
+        arimaRecs.value = [];
     }
 };
 
@@ -324,7 +352,7 @@ const formatNumber = (num) => {
 };
 
 const isArimaTrending = (product) => {
-    return arimaRecs.value.some(r => r.id === product.id);
+    return (arimaRecs.value || []).some(r => r && r.id === product.id);
 };
 
 const openProductDetail = (product) => {

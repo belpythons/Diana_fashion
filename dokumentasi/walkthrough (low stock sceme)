@@ -1,0 +1,68 @@
+# Walkthrough: Fitur Manajemen Barang Habis & Panel Stok Rendah
+
+Seluruh implementasi untuk menyembunyikan barang habis, pembatasan cart storefront, visual badge "Sisa 1", dan panel stok rendah serta pemberitahuan kritis admin telah selesai dibuat, dikonfigurasi, dan diverifikasi.
+
+## 🛠️ Perubahan yang Dilakukan
+
+### 1. Backend: Filter Stok Habis & Real-Time Alert Metrics
+
+*   **[StorefrontController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/StorefrontController.php)**
+    *   Menyembunyikan produk dengan `stock = 0` dari katalog storefront utama dan ARIMA AI recommendations.
+    *   Menambahkan `Cache::flush()` pada penyelesaian checkout e-commerce agar perubahan stok langsung ter-apply di browser pelanggan.
+*   **[PosController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/PosController.php)**
+    *   Menyembunyikan produk habis (`stock = 0`) dari pencarian di kasir POS Terminal.
+    *   Menambahkan invalidasi cache pada kasir checkout dan ACC/Reject antrean online.
+*   **[AdminDashboardController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminDashboardController.php)**
+    *   Menghitung jumlah produk dengan stok kritis (`< 2` pcs) secara real-time dan mengembalikannya sebagai parameter `low_stock_critical_count` ke inisialisasi dashboard.
+*   **[AdminProductController.php](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/app/Http/Controllers/Admin/AdminProductController.php)**
+    *   Mendukung parameter query `low_stock_threshold` dinamis untuk menampilkan produk dengan batas stok kritis (< 2) dan filter berdasarkan kategori produk.
+    *   Memicu `Cache::flush()` setelah tambah, ubah, atau hapus produk di panel admin.
+
+### 2. Storefront: Proteksi Cart & Visual Badge "Sisa 1"
+
+*   **[Home.vue](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/Pages/Storefront/Views/Home.vue)**
+    *   Menampilkan badge merah premium **"Sisa 1"** di pojok kanan atas gambar produk pada katalog storefront jika sisa stok tepat 1.
+    *   Menampilkan label **"Sisa 1 Pcs Saja!"** pada detail modal produk jika stok sisa 1, dan label **"Stok Habis"** jika stok = 0.
+    *   Men-disable tombol keranjang dan melabelinya sebagai **"Habis"** ketika stok habis.
+*   **[app.js](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/app.js)**
+    *   Menambahkan validasi lapis kedua di `addToCart` untuk langsung menolak penambahan barang habis ke keranjang belanja.
+    *   Membatasi penambahan qty di keranjang (`updateQty`) agar tidak melampaui stok fisik yang tersedia.
+
+### 3. Admin Panel: Dashboard Alert & Low Stock View
+
+*   **[Dashboard/Index.vue](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/Pages/Admin/Dashboard/Index.vue)**
+    *   Membuat banner alert merah **"Pemberitahuan Stok Kritis"** di bagian atas dashboard admin jika terdapat produk dengan stok di bawah 2 pcs.
+    *   Alert ini menyertakan tombol cepat **"Restock Barang →"** menuju ke panel stok rendah.
+*   **[Products/Index.vue](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/Pages/Admin/Products/Index.vue)**
+    *   Menambahkan tombol navigasi **"Stok Rendah (< 2)"** di samping "+ Tambah Produk Baru" yang dilengkapi badge merah dinamis berisi jumlah produk kritis.
+*   **[admin.js](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/admin.js)**
+    *   Mendaftarkan route `/admin/products/low-stock`.
+*   **[LowStock.vue](file:///c:/laragon/www/Diana_fashion/diana_fashion_app/resources/js/Pages/Admin/Products/LowStock.vue) [NEW]**
+    *   Halaman panel admin baru yang khusus memfilter barang habis (0) atau kritis (1).
+    *   Mendukung pencarian SKU/nama dengan debounce 300ms, filter kategori, dan inline edit stok instan via modal mini tanpa perlu keluar dari panel.
+
+---
+
+## 🧪 Hasil Pengujian & Verifikasi Browser
+
+Kami memverifikasi seluruh fungsionalitas di atas menggunakan subagent browser:
+
+1.  **Peringatan Dashboard**: Saat masuk dashboard, banner peringatan mendeteksi **82 produk berstok kritis**.
+2.  **Daftar Stok Rendah**: Mengklik restock mengarahkan ke `/admin/products/low-stock` yang menampilkan tabel barang berstok 0 dan 1.
+3.  **Update Stok Cepat**: Mengklik "Edit Stok" pada produk **cardigan mardi (ATS-012)** yang berstok 1, memperbaruinya menjadi **10**, dan menyimpannya.
+4.  **Hasil Akhir**: Produk tersebut langsung menghilang dari daftar stok rendah, dan saat kembali ke dashboard, banner otomatis mendeteksi penurunan jumlah menjadi **81 produk**.
+
+### Galeri Hasil Verifikasi:
+
+````carousel
+![Dashboard Peringatan Stok Kritis (Awal)](/C:/Users/Lenovo/.gemini/antigravity-ide/brain/a31899e8-45e7-41ff-a2bc-62f46b1d6821/dashboard_warning_before_1780816684441.png)
+<!-- slide -->
+![Panel Stok Rendah (Sebelum Update)](/C:/Users/Lenovo/.gemini/antigravity-ide/brain/a31899e8-45e7-41ff-a2bc-62f46b1d6821/low_stock_before_1780816595056.png)
+<!-- slide -->
+![Dashboard Update Ter-sinkron (Menjadi 81)](/C:/Users/Lenovo/.gemini/antigravity-ide/brain/a31899e8-45e7-41ff-a2bc-62f46b1d6821/dashboard_warning_after_1780816899805.png)
+<!-- slide -->
+![Panel Stok Rendah (Setelah Update)](/C:/Users/Lenovo/.gemini/antigravity-ide/brain/a31899e8-45e7-41ff-a2bc-62f46b1d6821/low_stock_after_1780816974470.png)
+````
+
+### Rekaman Interaksi Browser Subagent:
+![Video Sesi Verifikasi](/C:/Users/Lenovo/.gemini/antigravity-ide/brain/a31899e8-45e7-41ff-a2bc-62f46b1d6821/admin_flow_verification_1780816465315.webp)

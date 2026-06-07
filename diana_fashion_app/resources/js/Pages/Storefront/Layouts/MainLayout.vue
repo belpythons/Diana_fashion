@@ -6,6 +6,14 @@
                 <div class="flex justify-between h-16 items-center">
                     <!-- Logo -->
                     <div class="flex items-center">
+                        <!-- Mobile Hamburger Button -->
+                        <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden mr-3 text-gray-600 hover:text-[#FF1F8F] focus:outline-none cursor-pointer border-0 bg-transparent">
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path v-if="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                                <path v-else stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+
                         <router-link to="/" class="flex items-center space-x-2.5">
                             <img src="/logo.jpg" alt="Logo" class="h-9 w-9 rounded-full object-cover border border-gray-100 shadow-sm" />
                             <span class="text-lg font-extrabold text-[#FF1F8F] tracking-tight uppercase">Diana Fashion</span>
@@ -47,14 +55,18 @@
                         <div class="flex items-center space-x-4">
                             <template v-if="user">
                                 <router-link to="/customer" class="text-sm font-medium text-gray-700 hover:text-[#FF1F8F] transition-colors flex items-center space-x-1">
-                                    <span>Hai, {{ user.name }}</span>
+                                    <svg class="w-5 h-5 md:hidden" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                                    </svg>
+                                    <span class="hidden md:inline">Hai, {{ user.name }}</span>
                                 </router-link>
                                 
-                                <a v-if="user.role === 'admin'" href="/admin" class="bg-gray-100 hover:bg-[#FF1F8F] hover:text-white text-gray-700 text-xs font-semibold px-2.5 py-1 rounded-sm transition-all border border-gray-200">
-                                    Admin Panel
+                                <a v-if="user.role === 'admin'" href="/admin" class="bg-gray-100 hover:bg-[#FF1F8F] hover:text-white text-gray-700 text-xs font-semibold px-2 py-0.5 md:px-2.5 md:py-1 rounded-sm transition-all border border-gray-200">
+                                    <span class="md:hidden">Adm</span>
+                                    <span class="hidden md:inline">Admin Panel</span>
                                 </a>
 
-                                <button @click="logout" class="text-xs font-semibold text-gray-500 hover:text-red-500 transition-colors">
+                                <button @click="logout" class="text-xs font-semibold text-gray-500 hover:text-red-500 transition-colors border-0 bg-transparent cursor-pointer">
                                     Keluar
                                 </button>
                             </template>
@@ -67,6 +79,24 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Mobile Menu Dropdown (tampil hanya di mobile saat di-toggle) -->
+            <transition name="slide-fade">
+                <div v-if="mobileMenuOpen" class="md:hidden bg-white border-t border-gray-100 py-3 px-4 space-y-2 shadow-inner">
+                    <router-link to="/" @click="mobileMenuOpen = false" class="block text-sm font-medium text-gray-700 hover:text-[#FF1F8F] py-2 transition-colors">
+                        Semua Produk
+                    </router-link>
+                    <a href="#" @click.prevent="$emit('filter-category', 'Atasan'); mobileMenuOpen = false" class="block text-sm font-medium text-gray-700 hover:text-[#FF1F8F] py-2 transition-colors">
+                        Atasan
+                    </a>
+                    <a href="#" @click.prevent="$emit('filter-category', 'Bawahan'); mobileMenuOpen = false" class="block text-sm font-medium text-gray-700 hover:text-[#FF1F8F] py-2 transition-colors">
+                        Bawahan
+                    </a>
+                    <a href="#" @click.prevent="$emit('filter-category', 'Gamis'); mobileMenuOpen = false" class="block text-sm font-medium text-gray-700 hover:text-[#FF1F8F] py-2 transition-colors">
+                        Gamis
+                    </a>
+                </div>
+            </transition>
         </header>
 
         <!-- Main Content Area -->
@@ -86,7 +116,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 
 defineProps({
     user: { type: Object, default: null },
@@ -95,7 +125,23 @@ defineProps({
 
 const emit = defineEmits(['logout', 'filter-category']);
 
+const mobileMenuOpen = ref(false);
+
 const logout = () => {
     emit('logout');
 };
 </script>
+
+<style scoped>
+.slide-fade-enter-active {
+  transition: all 0.2s ease-out;
+}
+.slide-fade-leave-active {
+  transition: all 0.15s cubic-bezier(1, 0.5, 0.8, 1);
+}
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+</style>

@@ -1,5 +1,23 @@
 <template>
     <div class="space-y-8">
+        <!-- Peringatan Stok Kritis -->
+        <div v-if="lowStockCriticalCount > 0" class="bg-red-50 border border-red-200 rounded-sm p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fadeIn">
+            <div class="flex items-start space-x-3">
+                <div class="p-2 bg-red-100 rounded-sm text-red-600 mt-0.5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-red-800 uppercase tracking-wider">Pemberitahuan Stok Kritis</h4>
+                    <p class="text-xs text-red-600 mt-1">Terdapat {{ lowStockCriticalCount }} produk dengan persediaan stok kritis (stok di bawah 2 pcs). Segera lakukan penambahan stok agar produk dapat tampil kembali di storefront.</p>
+                </div>
+            </div>
+            <router-link to="/admin/products/low-stock" class="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-4 py-2.5 rounded-sm uppercase tracking-wider transition-colors cursor-pointer text-center whitespace-nowrap self-stretch sm:self-auto flex items-center justify-center">
+                Restock Barang →
+            </router-link>
+        </div>
+
         <!-- Metrik Omnichannel Cards -->
         <div :class="showTrendChart ? 'lg:grid-cols-5' : 'lg:grid-cols-4'" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <!-- Card 1: Pendapatan Hari Ini -->
@@ -420,6 +438,8 @@ const metrics = ref({
     orders_month: 0
 });
 
+const lowStockCriticalCount = ref(0);
+
 const comparison = ref({
     pos: { count: 0, total: 0 },
     web: { count: 0, total: 0 }
@@ -491,6 +511,11 @@ const fetchDashboardData = async () => {
     try {
         const response = await axios.get('/api/admin/dashboard/init');
         const data = response.data;
+
+        // Map Low Stock Critical Count
+        if (data.low_stock_critical_count !== undefined) {
+            lowStockCriticalCount.value = data.low_stock_critical_count;
+        }
 
         // 1. Map Metrics
         if (data.metrics_data) {

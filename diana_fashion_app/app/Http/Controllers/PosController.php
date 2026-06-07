@@ -22,9 +22,10 @@ class PosController extends Controller
         $category = $request->get('category', '');
 
         $cacheKey = "pos_products_k_{$keyword}_c_{$category}";
+        $driver = \Illuminate\Support\Facades\DB::getDriverName();
 
-        $products = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function () use ($keyword, $category) {
-            $query = Product::with('category');
+        $products = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function () use ($keyword, $category, $driver) {
+            $query = Product::with('category')->where('stock', '>', 0);
 
             // Filter berdasarkan kategori jika disediakan
             if (!empty($category)) {
@@ -35,10 +36,10 @@ class PosController extends Controller
 
             // Pencarian berdasarkan keyword SKU (prefix match) atau nama (kompatibel cross-database)
             if (!empty($keyword)) {
-                $query->where(function ($q) use ($keyword) {
+                $query->where(function ($q) use ($keyword, $driver) {
                     $q->where('sku', 'LIKE', $keyword . '%');
                     
-                    if (\Illuminate\Support\Facades\DB::getDriverName() === 'pgsql') {
+                    if ($driver === 'pgsql') {
                         $q->orWhere('name', 'ILIKE', '%' . $keyword . '%');
                     } else {
                         $q->orWhereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$keyword . '*']);
@@ -48,10 +49,10 @@ class PosController extends Controller
 
             // Jika tidak ada kriteria pencarian, default tampilkan 15 produk terbaru
             if (empty($keyword) && empty($category)) {
-                return $query->orderBy('created_at', 'desc')->take(15)->get();
+                return $query->orderBy('created_at', 'desc')->take(15)->get()->toArray();
             }
 
-            return $query->get();
+            return $query->get()->toArray();
         });
 
         return response()->json($products);
@@ -137,6 +138,9 @@ class PosController extends Controller
                             'price_at_purchase' => $vItem['price_at_purchase']
                         ]);
                     }
+
+                    // Flush cache storefront & POS agar perubahan stok langsung ter-apply
+                    \Illuminate\Support\Facades\Cache::flush();
 
                     return response()->json([
                         'message' => 'Transaksi POS berhasil diselesaikan.',
@@ -233,6 +237,9 @@ class PosController extends Controller
                 
                 $message = 'Pesanan online berhasil ditolak (Reject). Stok dikembalikan ke inventaris.';
             }
+
+            // Flush cache storefront & POS setelah validasi antrean online
+            \Illuminate\Support\Facades\Cache::flush();
 
             return response()->json([
                 'message' => $message,
