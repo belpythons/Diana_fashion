@@ -110,7 +110,7 @@ class ArimaController extends Controller
                 'forecast_periods' => $periods,
                 'tuning_parameters' => $tuningParams,
                 'arima_order' => $result['arima_order'] ?? 'N/A',
-                'mape_score' => $result['evaluation']['mape_score'] ?? 0.0,
+                'mape_score' => min(floatval($result['evaluation']['mape_score'] ?? 0.0), 999.99),
                 'execution_time_ms' => $result['execution_time_ms'] ?? 0
             ]);
 
@@ -165,6 +165,9 @@ class ArimaController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("ARIMA Single Product Prediction Exception: " . $e->getMessage(), [
+                'exception' => $e
+            ]);
             return response()->json([
                 'message' => 'Gagal terhubung ke Flask ARIMA Microservice. Pastikan layanan microservice telah aktif.',
                 'error' => $e->getMessage()
@@ -253,7 +256,7 @@ class ArimaController extends Controller
                 'forecast_periods' => $periods,
                 'tuning_parameters' => $tuningParams,
                 'arima_order' => $result['arima_order'] ?? 'N/A',
-                'mape_score' => $result['evaluation']['mape_score'] ?? 0.0,
+                'mape_score' => min(floatval($result['evaluation']['mape_score'] ?? 0.0), 999.99),
                 'execution_time_ms' => $result['execution_time_ms'] ?? 0
             ]);
 
@@ -292,6 +295,9 @@ class ArimaController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("ARIMA Global Prediction Exception: " . $e->getMessage(), [
+                'exception' => $e
+            ]);
             return response()->json([
                 'message' => 'Gagal terhubung ke Flask ARIMA Microservice. Pastikan layanan microservice telah aktif.',
                 'error' => $e->getMessage()
