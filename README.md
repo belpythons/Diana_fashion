@@ -1,69 +1,71 @@
-```mermaid
-graph LR
-    subgraph Kolom_Entitas [Entitas Eksternal]
-        cust[Pelanggan]
-        staff[Staff / Kasir]
-        adm[Admin]
-        arima[Service ARIMA Python]
-    end
+```
+# Diana Fashion - Omnichannel & ARIMA Sales Forecasting 👗📈
 
-graph LR
-    %% Pengaturan Subgraph untuk Memisahkan Kolom
-    subgraph Kolom_Entitas [Entitas Eksternal]
-        cust[Pelanggan]
-        staff[Staff / Kasir]
-        adm[Admin]
-        arima[Service ARIMA Python]
-    end
+> **Status:** Active Development / Hybrid Architecture Project
 
-    subgraph Kolom_Proses [Proses Utama]
-        p1((1.0 Login & Otentikasi))
-        p2((2.0 Kelola Data Master))
-        p3((3.0 Transaksi Omnichannel))
-        p4((4.0 Forecasting & Pelaporan))
-    end
+**Diana Fashion** adalah platform *omnichannel e-commerce* cerdas yang dirancang tidak hanya untuk mengelola penjualan dari berbagai saluran, tetapi juga dilengkapi dengan kemampuan analitik tingkat lanjut. Sistem ini menggunakan model statistik **ARIMA (AutoRegressive Integrated Moving Average)** untuk memprediksi tren pendapatan penjualan di masa depan[cite: 24].
 
-    subgraph Kolom_DB [Penyimpanan Data]
-        d1[(Tabel Users)]
-        d2[(Tabel Products & Categories)]
-        d3[(Tabel Orders & Items)]
-        d4[(Tabel Prediction Logs)]
-    end
+Aplikasi ini mengadopsi arsitektur *hybrid* (*Microservices-lite*), di mana proses transaksional (*Core App*) dipisahkan dari pemrosesan data analitik (*AI/Data Service*) untuk menjaga performa sistem utama[cite: 24].
 
-    %% Hubungan Aliran Data Kolom 1 ke Kolom 2
-    cust -->|Data Login| p1
-    p1 -->|Info Login| cust
-    staff -->|Data Login| p1
-    p1 -->|Info Login| staff
-    adm -->|Data Login| p1
-    p1 -->|Info Login| adm
+## ✨ Arsitektur & Modul Utama
 
-    adm -->|Data Master| p2
-    p2 -->|Info Kelola| adm
+Sistem ini terbagi menjadi dua *service* independen:
 
-    cust -->|Order Online| p3
-    p3 -->|Status & Struk| cust
-    staff -->|Transaksi POS| p3
-    p3 -->|Struk POS| staff
+### 1. Core Application (Diana Fashion App)
+Dibangun menggunakan **VILT Stack** (Vue.js, Inertia, Laravel, Tailwind CSS) untuk mengelola antarmuka pengguna dan logika bisnis[cite: 24].
+* **Admin Dashboard:** Manajemen produk, kategori, pelanggan, dan staf. Dilengkapi dengan tampilan khusus untuk memonitor hasil prediksi ARIMA[cite: 24].
+* **Storefront (Customer Portal):** Antarmuka pelanggan untuk berbelanja, melihat keranjang (*cart*), *checkout*, dan melacak riwayat pesanan[cite: 24].
+* **Omnichannel Management:** Penanganan pesanan lintas saluran penjualan[cite: 24].
+* **Inventory Control:** Modul peringatan stok rendah (*Low Stock Alerts*)[cite: 24].
 
-    adm -->|Parameter ARIMA| p4
-    p4 -->|Visualisasi Prediksi| adm
-    p4 -->|Payload Historis| arima
-    arima -->|Hasil Forecast| p4
+### 2. Analytics Service (Diana ARIMA Service)
+Microservice berbasis **Python (Flask)** yang dikhususkan untuk komputasi statistik berat[cite: 24].
+* **ARIMA Forecasting:** Mengambil agregasi data penjualan historis (via *Materialized Views*) dan menghitung prediksi pendapatan harian[cite: 24].
+* **Tuning Configuration:** Menerima parameter *tuning* (p, d, q) secara dinamis dari *dashboard* Admin Laravel[cite: 24].
+* **Prediction Logging:** Mencatat setiap hasil eksekusi model ARIMA untuk keperluan audit dan evaluasi akurasi[cite: 24].
 
-    %% Hubungan Aliran Data Kolom 2 ke Kolom 3
-    p1 -->|Verifikasi Akun| d1
-    d1 -->|Data User Valid| p1
-    p2 -->|Update Data Staff| d1
-    p2 -->|Manipulasi Katalog| d2
-    d2 -->|Data Katalog Berubah| p2
+## 🚀 Panduan Instalasi Lokal
 
-    p3 -->|Potong Stok Produk| d2
-    d2 -->|Sisa Stok Real-time| p3
-    p3 -->|Simpan Invoice Order| d3
-    d3 -->|Rekap Transaksi| p3
+Karena proyek ini menggunakan dua *service* berbeda, Anda perlu menjalankan keduanya secara bersamaan.
 
-    p4 -->|Tarik Tren Penjualan| d3
-    d3 -->|Data Deret Waktu| p4
-    p4 -->|Log Prediksi Baru| d4
-    d4 -->|Ambil Riwayat Prediksi| p4
+### A. Menjalankan Core App (Laravel)
+```bash
+# 1. Masuk ke direktori aplikasi utama
+cd diana_fashion_app
+
+# 2. Instalasi dependensi
+composer install
+npm install
+
+# 3. Konfigurasi .env (Database)
+cp .env.example .env
+php artisan key:generate
+
+# 4. Migrasi dan Seeding (Terdapat dummy data penjualan untuk testing ARIMA)
+php artisan migrate --seed
+
+# 5. Jalankan server
+php artisan serve
+npm run dev
+
+```
+
+### B. Menjalankan ARIMA Service (Flask)
+
+Disarankan menggunakan *Virtual Environment* (`venv`).
+
+```bash
+# 1. Buka terminal baru, masuk ke direktori service
+cd diana_arima_service
+
+# 2. Aktifkan Virtual Environment (Windows)
+venv\Scripts\activate
+# Atau untuk Linux/macOS: source venv/bin/activate
+
+# 3. Instalasi dependensi (pandas, statsmodels, flask, dll)
+pip install -r requirements.txt
+
+# 4. Jalankan Flask API
+python app.py
+
+```
