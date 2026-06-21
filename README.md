@@ -1,4 +1,3 @@
-```
 # Diana Fashion - Omnichannel & ARIMA Sales Forecasting 👗📈
 
 > **Status:** Active Development / Hybrid Architecture Project
