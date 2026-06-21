@@ -2,26 +2,26 @@
 
 > **Status:** Active Development / Hybrid Architecture Project
 
-**Diana Fashion** adalah platform *omnichannel e-commerce* cerdas yang dirancang tidak hanya untuk mengelola penjualan dari berbagai saluran, tetapi juga dilengkapi dengan kemampuan analitik tingkat lanjut. Sistem ini menggunakan model statistik **ARIMA (AutoRegressive Integrated Moving Average)** untuk memprediksi tren pendapatan penjualan di masa depan[cite: 24].
+**Diana Fashion** adalah platform *omnichannel e-commerce* cerdas yang dirancang tidak hanya untuk mengelola penjualan dari berbagai saluran, tetapi juga dilengkapi dengan kemampuan analitik tingkat lanjut. Sistem ini menggunakan model statistik **ARIMA (AutoRegressive Integrated Moving Average)** untuk memprediksi tren pendapatan penjualan di masa depan.
 
-Aplikasi ini mengadopsi arsitektur *hybrid* (*Microservices-lite*), di mana proses transaksional (*Core App*) dipisahkan dari pemrosesan data analitik (*AI/Data Service*) untuk menjaga performa sistem utama[cite: 24].
+Aplikasi ini mengadopsi arsitektur *hybrid* (*Microservices-lite*), di mana proses transaksional (*Core App*) dipisahkan dari pemrosesan data analitik (*AI/Data Service*) untuk menjaga performa sistem utama.
 
 ## ✨ Arsitektur & Modul Utama
 
 Sistem ini terbagi menjadi dua *service* independen:
 
 ### 1. Core Application (Diana Fashion App)
-Dibangun menggunakan **VILT Stack** (Vue.js, Inertia, Laravel, Tailwind CSS) untuk mengelola antarmuka pengguna dan logika bisnis[cite: 24].
-* **Admin Dashboard:** Manajemen produk, kategori, pelanggan, dan staf. Dilengkapi dengan tampilan khusus untuk memonitor hasil prediksi ARIMA[cite: 24].
-* **Storefront (Customer Portal):** Antarmuka pelanggan untuk berbelanja, melihat keranjang (*cart*), *checkout*, dan melacak riwayat pesanan[cite: 24].
-* **Omnichannel Management:** Penanganan pesanan lintas saluran penjualan[cite: 24].
-* **Inventory Control:** Modul peringatan stok rendah (*Low Stock Alerts*)[cite: 24].
+Dibangun menggunakan **VILT Stack** (Vue.js, Inertia, Laravel, Tailwind CSS) untuk mengelola antarmuka pengguna dan logika bisnis.
+* **Admin Dashboard:** Manajemen produk, kategori, pelanggan, dan staf. Dilengkapi dengan tampilan khusus untuk memonitor hasil prediksi ARIMA.
+* **Storefront (Customer Portal):** Antarmuka pelanggan untuk berbelanja, melihat keranjang (*cart*), *checkout*, dan melacak riwayat pesanan.
+* **Omnichannel Management:** Penanganan pesanan lintas saluran penjualan.
+* **Inventory Control:** Modul peringatan stok rendah (*Low Stock Alerts*).
 
 ### 2. Analytics Service (Diana ARIMA Service)
-Microservice berbasis **Python (Flask)** yang dikhususkan untuk komputasi statistik berat[cite: 24].
-* **ARIMA Forecasting:** Mengambil agregasi data penjualan historis (via *Materialized Views*) dan menghitung prediksi pendapatan harian[cite: 24].
-* **Tuning Configuration:** Menerima parameter *tuning* (p, d, q) secara dinamis dari *dashboard* Admin Laravel[cite: 24].
-* **Prediction Logging:** Mencatat setiap hasil eksekusi model ARIMA untuk keperluan audit dan evaluasi akurasi[cite: 24].
+Microservice berbasis **Python (Flask)** yang dikhususkan untuk komputasi statistik berat.
+* **ARIMA Forecasting:** Mengambil agregasi data penjualan historis (via *Materialized Views*) dan menghitung prediksi pendapatan harian.
+* **Tuning Configuration:** Menerima parameter *tuning* (p, d, q) secara dinamis dari *dashboard* Admin Laravel.
+* **Prediction Logging:** Mencatat setiap hasil eksekusi model ARIMA untuk keperluan audit dan evaluasi akurasi.
 
 ## 🚀 Panduan Instalasi Lokal
 
@@ -66,3 +66,5 @@ pip install -r requirements.txt
 python app.py
 
 ```
+
+
