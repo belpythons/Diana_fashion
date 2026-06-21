@@ -47,8 +47,6 @@ php artisan migrate --seed
 php artisan serve
 npm run dev
 
-```
-
 ### B. Menjalankan ARIMA Service (Flask)
 
 Disarankan menggunakan *Virtual Environment* (`venv`).
